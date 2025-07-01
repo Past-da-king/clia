@@ -1,20 +1,9 @@
- python ./ai_agent/agent.py
+$ python ./ai_agent/agent.py
+ayanda
+Starting MCP Tool Server...ayanda
 CLI SWE AI Initializing...
 Using Model: gemini-2.5-flash-lite-preview-06-17
-Looking for tool server: swe_tools.run_server
-MCP Tool Server Connected.
+ Looking for tool server: swe_tools.run_server
+An error occurred: unhandled errors in a TaskGroup (2 sub-exceptions)
 
-Available Tools:
-  - generate_codebase_snapshot: Creates a detailed string snapshot of a specified directory, including...
-  - read_file_content: Retrieves and returns the entire content of a single specified file. T...
-  - modify_file_lines: Modifies existing files by applying line-by-line changes based on a pr...
-  - delete_files: Deletes one or more specified files from the filesystem. This action i...
-  - execute_shell_command: Executes a given command in the system's command-line interface and re...
-  - restore_files_from_snapshot: Reconstructs files and directories from a provided snapshot string. Th...
-  - view_directory_tree: Generates a tree-like representation of the file and directory structu...
-
-==================================================
-🤖 CLI SWE AI is ready. Type your task, or 'exit' to quit.
-==================================================
-
-➡️  You: 
+MCP Tool Server terminated.

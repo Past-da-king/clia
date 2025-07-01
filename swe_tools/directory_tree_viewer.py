@@ -13,7 +13,7 @@ def view_directory_tree(path: str = ".", max_depth: int = 3, ignore: Optional[st
         max_depth: The maximum depth to traverse. Defaults to 3.
         ignore: Optional comma-separated string of glob patterns to ignore.
     """
-    user_ignore_patterns = [p.strip() for p in ignore.split(',')] if ignore else []
+    user_ignore_patterns = [p.strip() for p in ignore.split(',')] if ignore is not None else []
     all_ignore_patterns = list(set(DEFAULT_IGNORE_PATTERNS + user_ignore_patterns))
     if not os.path.isdir(path): return f"Error: Directory not found: {path}"
     tree_lines = [f"{os.path.basename(os.path.abspath(path))}/"]

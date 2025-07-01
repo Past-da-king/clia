@@ -1,12 +1,9 @@
-# ai_agent/agent.py (with Conversational Memory and Thinking)
+# cli_swe_ai.py (with Conversational Memory)
 import asyncio
 import os
 import sys
 import textwrap
 from typing import List, Any, Dict
-
-# Set stdout encoding to UTF-8 for emoji support
-sys.stdout.reconfigure(encoding='utf-8')
 
 from dotenv import load_dotenv
 
@@ -14,12 +11,12 @@ from google import genai
 from google.genai import types
 
 from mcp import ClientSession
-from mcp.client.stdio import stdio_client, StdioServerParameters
+from mcp.client.stdio import StdioServerParameters, stdio_client
 from mcp.types import Tool as MCPTool
 
 # --- Configuration ---
 MODEL_NAME = "gemini-2.5-flash-lite-preview-06-17"
-MCP_SERVER_SCRIPT = "swe_tools.run_server" # Assuming this is the correct module path
+MCP_SERVER_SCRIPT = "cli.py" 
 MAX_TOOL_TURNS = 15
 
 # --- Helper Function (No changes needed) ---
@@ -48,7 +45,6 @@ async def main():
         api_key = os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             print("❌ ERROR: GOOGLE_API_KEY not found.")
-            print("   Please create a .env file and add your key: GOOGLE_API_KEY='YOUR_API_KEY'")
             sys.exit(1)
         client = genai.Client(api_key=api_key)
     except Exception as e:
@@ -59,10 +55,11 @@ async def main():
     print(f"🧠 Using Model: {MODEL_NAME}")
     print(f"🛠️  Looking for tool server: {MCP_SERVER_SCRIPT}")
 
-    server_params = StdioServerParameters(command=sys.executable, args=["-m", MCP_SERVER_SCRIPT], env={
-        **os.environ.copy(),
-        'PYTHONPATH': os.getcwd()
-    })
+    if not os.path.exists(MCP_SERVER_SCRIPT):
+        print(f"❌ ERROR: Tool server script '{MCP_SERVER_SCRIPT}' not found.")
+        sys.exit(1)
+
+    server_params = StdioServerParameters(command=sys.executable, args=[MCP_SERVER_SCRIPT])
 
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as mcp_session:
@@ -74,13 +71,9 @@ async def main():
                 print("❌ ERROR: No tools found on the MCP server.")
                 return
 
-            gemini_tools = types.Tool(
-                function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools]
-            )
-
-            # --- THE FIX 1: Create a single, reusable generation config ---
+            # Define the generation configuration, including the system prompt
             generation_config = types.GenerateContentConfig(
-                tools=[gemini_tools],
+                tools=[types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools])],
                 system_instruction="""
 You are an expert, autonomous software engineering AI. Your sole purpose is to complete user-given tasks by interacting with a local file system and command line using a specific set of tools. You MUST operate under the following principles and directives.
 
@@ -126,21 +119,14 @@ You MUST adhere to these rules for tool selection. Misusing a tool will lead to 
 ## Final Directive
 Always think step-by-step. Use the conversational history to inform your plan. Announce your plan, execute a single tool, analyze the result, and then announce your next plan. Your goal is to be a transparent and reliable engineer.
                 """,
-                # This enables the model's internal reasoning process.
-                thinking_config=types.ThinkingConfig(
-                    include_thoughts=True
-                )
+                thinking_config=types.ThinkingConfig(include_thoughts=True)
             )
-
-            print("\nAvailable Tools:")
-            for tool in gemini_tools.function_declarations:
-                print(f"  - {tool.name}: {tool.description[:70]}...")
 
             print("\n" + "="*50)
             print("🤖 CLI SWE AI is ready. Type your task, or 'exit' to quit.")
             print("="*50 + "\n")
 
-            # --- THE FIX 2: Initialize history OUTSIDE the main loop ---
+            # --- THE FIX: Initialize history OUTSIDE the loop ---
             history = []
 
             while True:
@@ -151,7 +137,7 @@ Always think step-by-step. Use the conversational history to inform your plan. A
                 if not user_task.strip():
                     continue
 
-                # --- THE FIX 3: APPEND the new user message to the persistent history ---
+                # --- THE FIX: APPEND the new user message to the existing history ---
                 history.append(types.Content(role='user', parts=[types.Part.from_text(text=user_task)]))
                 
                 print("\n💡 Thinking...")
@@ -163,24 +149,20 @@ Always think step-by-step. Use the conversational history to inform your plan. A
                     response = await client.aio.models.generate_content(
                         model=MODEL_NAME,
                         contents=history,
-                        config=generation_config # Pass the full config object here
+                        config=generation_config
                     )
                     candidate = response.candidates[0]
 
-                    # --- THE FIX 4: Loop through parts to print thought summaries ---
-                    has_thought = False
                     for part in candidate.content.parts:
-                        if hasattr(part, 'thought') and part.thought:
-                            if not has_thought:
-                                print("🤔 AI's Thoughts:")
-                                has_thought = True
-                            # Indent the thought for readability
-                            print(textwrap.indent(part.text, '    '))
+                        if part.thought:
+                            print(f"🤔 AI's Thoughts:\n{textwrap.indent(part.text, '    ')}")
 
                     if not candidate.content.parts or not candidate.content.parts[0].function_call:
                         break # The model has a final text answer
                     
+                    # The model wants to use a tool, append its request to history
                     history.append(candidate.content)
+                    
                     function_call = candidate.content.parts[0].function_call
                     tool_name = function_call.name
                     tool_args = dict(function_call.args)
@@ -203,11 +185,10 @@ Always think step-by-step. Use the conversational history to inform your plan. A
                 for line in textwrap.wrap(final_response_text, width=80):
                     print(line)
                 print("="*15 + "\n")
-                
-                # --- THE FIX 5: Append the final model response to history ---
-                if response.candidates:
-                    history.append(response.candidates[0].content)
 
+                # --- THE FIX: Append the model's final response to history ---
+                history.append(candidate.content)
+                
                 if turn_count >= MAX_TOOL_TURNS:
                     print("⚠️  Warning: Maximum tool turns reached. Task may be incomplete.")
 
@@ -216,5 +197,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nInterrupted by user. Exiting.")
-    except Exception as e:
-        print(f"An error occurred: {e}")

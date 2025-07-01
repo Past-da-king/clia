@@ -12,7 +12,7 @@ def generate_codebase_snapshot(path: str = ".", ignore: Optional[str] = None) ->
         path: The root directory to snapshot (e.g., '.'). Defaults to current directory.
         ignore: Optional comma-separated string of glob patterns to ignore.
     """
-    user_ignore_patterns = [p.strip() for p in ignore.split(',')] if ignore else []
+    user_ignore_patterns = [p.strip() for p in ignore.split(',')] if ignore is not None else []
     all_ignore_patterns = list(set(DEFAULT_IGNORE_PATTERNS + user_ignore_patterns))
     abs_root = os.path.abspath(path)
     if not os.path.isdir(abs_root): return f"Error: Source directory not found: {abs_root}"
