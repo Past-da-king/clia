@@ -170,7 +170,7 @@ async def main():
         print_message(f"❌ An unexpected error occurred during MCP server connection: {e}", role="error")
         traceback.print_exc()
 
-if __name__ == "__main__":
+def run_clia():
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
@@ -178,3 +178,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ A fatal error occurred: {e}")
         traceback.print_exc()
+
+if __name__ == "__main__":
+    run_clia()
