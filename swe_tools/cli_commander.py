@@ -1,58 +1,58 @@
 import subprocess
+import os
 from typing import Optional
 from swe_tools.__init__ import mcp
 
-@mcp.tool(name="run_shell_command", description="This tool executes arbitrary shell commands directly on the underlying operating system's command-line interface (CLI). It is designed for comprehensive interaction with the system, allowing for the execution of system utilities (e.g., `ls`, `dir`, `cat`, `grep`, `find`), scripts (e.g., Python, Bash), version control operations (e.g., `git status`, `git diff`), file system manipulations (e.g., `mkdir`, `rm`, `cp`, `mv`), and inspection of system configurations or logs. The command is run as a subprocess, and its execution is not sandboxed, meaning it has the same permissions as the AI agent itself. The tool captures and returns the full output, including both standard output (stdout) and standard error (stderr), along with the command's exit status and numerical return code. A return code of 0 typically indicates successful execution, while any non-zero value signifies an error. The output format explicitly separates these components for clear interpretation. Users must specify the `command` string, and can optionally provide a `working_directory` (absolute path) to control the execution context; if omitted, the command runs in the AI agent's current working directory. Be aware that commands executed via this tool can have significant side effects, including modifying the file system, initiating network connections, or altering system state. Therefore, extreme caution and explicit user confirmation are paramount before executing any command that could lead to unintended consequences.")
-def run_shell_command(command: str, working_directory: Optional[str] = None) -> str:
+@mcp.tool(name="run_shell_command", description="...")
+def run_shell_command(command: str, working_directory: Optional[str] = None, timeout: int = 30) -> str:
     """
-    Executes a given command in the system's command-line interface and returns its output.
-    This version is designed to be robust against hangs and deadlocks.
-
-    Args:
-        command: The command to execute.
-        working_directory: Optional directory to run the command in.
+    Executes a given command in a robust, non-blocking way that captures all output
+    without deadlocking. Works for any command, including Python, npm, etc.
     """
     if not command:
         return "Error: No command provided."
-    
+
     try:
-        # For Windows, it's often more reliable to use 'cmd.exe /c' to ensure the shell exits.
-        # For other OSes, this is not necessary but is harmless.
-        # We will split the command for better security and to avoid shell injection issues where possible.
-        # However, for commands like 'touch file.txt' or 'type NUL > file.txt', a shell is needed.
+        # Set up environment to prevent interactive prompts
+        env = os.environ.copy()
+        env['PYTHONUNBUFFERED'] = '1'
+        env['PYTHONIOENCODING'] = 'utf-8'
         
-        # The most robust cross-platform solution is to use shell=True but with a timeout.
-        # The previous Popen fix was correct in theory but can be complex. Let's simplify back to 'run'.
-        
-        result = subprocess.run(
+        process = subprocess.Popen(
             command,
             shell=True,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,  # Prevent hanging on input
             text=True,
             cwd=working_directory,
-            check=False,
-            timeout=20  # A 20-second timeout is critical.
+            env=env,
         )
-        
+
+        stdout, stderr = process.communicate(timeout=timeout)
+        return_code = process.returncode
+
         output = [
-            f"Status: {'Success' if result.returncode == 0 else 'Failure'}",
-            f"Return Code: {result.returncode}",
+            f"Status: {'Success' if return_code == 0 else 'Failure'}",
+            f"Return Code: {return_code}",
             "--- stdout ---",
-            result.stdout.strip(),
+            stdout.strip(),
             "--- stderr ---",
-            result.stderr.strip()
+            stderr.strip()
         ]
         return "\n".join(output)
 
-    except subprocess.TimeoutExpired as e:
+    except subprocess.TimeoutExpired:
+        process.kill()
+        stdout, stderr = process.communicate()
         timeout_output = [
             "Status: Failure",
             "Return Code: -1 (Terminated due to timeout)",
-            f"Error: Command '{command}' timed out after 20 seconds and was terminated.",
+            f"Error: Command '{command}' timed out after {timeout} seconds and was terminated.",
             "--- stdout (captured before timeout) ---",
-            e.stdout.strip() if e.stdout else "No stdout captured.",
+            stdout.strip() if stdout else "No stdout captured.",
             "--- stderr (captured before timeout) ---",
-            e.stderr.strip() if e.stderr else "No stderr captured."
+            stderr.strip() if stderr else "No stderr captured."
         ]
         return "\n".join(timeout_output)
 
