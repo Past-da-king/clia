@@ -1,8 +1,8 @@
 import os
 from swe_tools.__init__ import mcp
 
-@mcp.tool(name="delete_files", description="Deletes one or more specified files from the filesystem. This action is permanent and should be used with caution. Multiple file paths can be provided as a comma-separated string.")
-def delete_files(paths: str) -> str:
+@mcp.tool(name="delete_files_and_folders", description="This tool provides the capability to permanently delete one or more specified files or empty directories from the filesystem. This is a **highly destructive and irreversible action** and must be used with extreme caution. Once a file or empty directory is deleted using this tool, its contents cannot be recovered.\n\nThe tool processes a comma-separated list of paths. For each path provided:\n*   If the path points to an existing file, that file will be deleted.\n*   If the path points to an existing empty directory, that directory will be deleted.\n*   If the path points to a non-empty directory, the deletion will be skipped, and a message indicating that it's a directory will be included in the report. This is a safety measure to prevent accidental recursive deletion of entire directory trees.\n*   If the path does not exist, a warning will be issued.\n\nA detailed report is generated for each attempted deletion, indicating success, failure, or skipped items, along with any encountered errors. It is strongly recommended to verify the paths and understand the implications before using this tool.")
+def delete_files_and_folders(paths: str) -> str:
     """
     Deletes one or more specified files from the filesystem. This action is permanent and should be used with caution. Multiple file paths can be provided as a comma-separated string.
 

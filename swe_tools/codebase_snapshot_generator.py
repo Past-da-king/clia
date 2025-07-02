@@ -3,8 +3,15 @@ from typing import Optional
 from swe_tools.__init__ import mcp
 from swe_tools.utils import is_ignored, DEFAULT_IGNORE_PATTERNS
 
-@mcp.tool(name="generate_codebase_snapshot", description="Creates a detailed string snapshot of a specified directory, including file paths and line-numbered content. This is useful for capturing the current state of a codebase or specific files for analysis or restoration. Ignored files and directories can be excluded.")
-def generate_codebase_snapshot(path: str = ".", ignore: Optional[str] = None) -> str:
+@mcp.tool(name="read_codebase_snapshot", description="""This tool creates a comprehensive, detailed string representation (a 'snapshot') of a specified directory's contents, including all files and their line-numbered content. It is invaluable for capturing the exact state of a codebase, a specific module, or a set of files for various purposes such as:
+*   **Code Analysis:** Providing a complete view of code for review, understanding, or debugging.
+*   **State Preservation:** Saving the current state of files before making significant changes, allowing for easy restoration using the `write_files_from_snapshot` tool.
+*   **Context Provisioning:** Supplying the AI with a detailed and structured view of code files to inform its decisions and actions.
+
+The snapshot output format is highly structured: each file's content is preceded by a `$` followed by its relative path (from the specified `path` argument), and then the content itself is presented with line numbers, enclosed within triple backticks (```). This format ensures clarity and easy parsing.
+
+The tool intelligently handles directory traversal and can exclude files and directories based on predefined and user-specified ignore patterns. By default, it respects common ignore patterns (e.g., `.git`, `node_modules`, `__pycache__`). Users can extend these exclusions by providing additional glob patterns via the `ignore` parameter.""")
+def read_codebase_snapshot(path: str = ".", ignore: Optional[str] = None) -> str:
     """
     Creates a detailed string snapshot of a specified directory, including file paths and line-numbered content. This is useful for capturing the current state of a codebase or specific files for analysis or restoration. Ignored files and directories can be excluded.
 

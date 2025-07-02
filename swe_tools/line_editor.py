@@ -3,8 +3,25 @@ from collections import defaultdict
 from swe_tools.__init__ import mcp
 from swe_tools.utils import parse_multiline_commands
 
-@mcp.tool(name="modify_file_lines", description="Modifies existing files by applying line-by-line changes based on a provided multiline string. This tool is precise and allows for inserting, updating, or deleting specific lines within a file. The format for changes is '$path/to/file.ext\nline_num:new_content'.")
-def modify_file_lines(changes: str) -> str:
+@mcp.tool(name="edit_file_lines", description="""This tool provides a precise mechanism for modifying existing text files by applying line-by-line changes. It allows for granular control over file content, enabling insertion of new lines, updating existing lines, or deleting specific lines. This tool is particularly useful for:
+*   **Refactoring Code:** Making targeted changes to function signatures, variable names, or logic within specific lines.
+*   **Configuration Updates:** Modifying specific settings in configuration files without rewriting the entire file.
+*   **Patching Files:** Applying small, precise changes to files, similar to a patch operation.
+*   **Automated Code Generation/Modification:** Integrating into workflows that require programmatic alteration of source code.
+
+The tool operates by taking a multiline string as input, where each line specifies a file path and a corresponding line number with its new content. The format is `$path/to/file.ext` followed by `line_num:new_content`.
+
+**Key behaviors and considerations:**
+*   **Line Numbering:** Line numbers are 1-based.
+*   **Updating Lines:** If `line_num:new_content` is provided for an existing line number, the content of that line will be replaced with `new_content`.
+*   **Inserting Lines:** If `line_num:new_content` is provided for a line number greater than the current number of lines in the file, new lines will be appended to reach that line number, and then `new_content` will be inserted. If there are gaps, they will be filled with empty lines.
+*   **Deleting Lines:** To delete a line, provide `line_num:` (i.e., an empty string after the colon). The line at `line_num` will be removed.
+*   **Multiple Changes per File:** Multiple changes per file can be specified. The tool processes these changes in the order they appear in the input string, but the internal logic handles replacements based on line numbers, ensuring correct application.
+*   **File Not Found:** If a specified file path does not exist, an error will be reported for that file, and the tool will proceed to process other files.
+*   **Atomicity:** Changes are applied file by file. If an error occurs while modifying one file, it will be reported, but other files may still be successfully modified.
+
+It is highly recommended to first read the file content using `read_file_content` and carefully construct the `changes` string to avoid unintended modifications.""")
+def edit_file_lines(changes: str) -> str:
     """
     Modifies existing files by applying line-by-line changes based on a provided multiline string. This tool is precise and allows for inserting, updating, or deleting specific lines within a file. The format for changes is '$path/to/file.ext\nline_num:new_content'.
 

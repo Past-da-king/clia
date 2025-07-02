@@ -1,9 +1,10 @@
-# ai_agent/agent.py (with Conversational Memory and Thinking)
+# ai_agent/agent.py (Stable Version with Conversational History - Thinking feature removed to restore functionality)
 import asyncio
 import os
 import sys
 import textwrap
 from typing import List, Any, Dict
+import traceback
 
 # Set stdout encoding to UTF-8 for emoji support
 sys.stdout.reconfigure(encoding='utf-8')
@@ -19,10 +20,10 @@ from mcp.types import Tool as MCPTool
 
 # --- Configuration ---
 MODEL_NAME = "gemini-2.5-flash-lite-preview-06-17"
-MCP_SERVER_SCRIPT = "swe_tools.run_server" # Assuming this is the correct module path
+MCP_SERVER_SCRIPT = "swe_tools.run_server" 
 MAX_TOOL_TURNS = 15
 
-# --- Helper Function (No changes needed) ---
+# --- Helper Function (This is correct and does not need changes) ---
 def mcp_tool_to_genai_tool(mcp_tool: MCPTool) -> types.FunctionDeclaration:
     gemini_properties: Dict[str, Any] = {}
     required_params: List[str] = []
@@ -48,7 +49,6 @@ async def main():
         api_key = os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             print("❌ ERROR: GOOGLE_API_KEY not found.")
-            print("   Please create a .env file and add your key: GOOGLE_API_KEY='YOUR_API_KEY'")
             sys.exit(1)
         client = genai.Client(api_key=api_key)
     except Exception as e:
@@ -59,10 +59,7 @@ async def main():
     print(f"🧠 Using Model: {MODEL_NAME}")
     print(f"🛠️  Looking for tool server: {MCP_SERVER_SCRIPT}")
 
-    server_params = StdioServerParameters(command=sys.executable, args=["-m", MCP_SERVER_SCRIPT], env={
-        **os.environ.copy(),
-        'PYTHONPATH': os.getcwd()
-    })
+    server_params = StdioServerParameters(command=sys.executable, args=["-m", MCP_SERVER_SCRIPT], env={**os.environ.copy(), 'PYTHONPATH': os.getcwd()})
 
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as mcp_session:
@@ -74,62 +71,13 @@ async def main():
                 print("❌ ERROR: No tools found on the MCP server.")
                 return
 
-            gemini_tools = types.Tool(
-                function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools]
-            )
+            gemini_tools = types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools])
 
-            # --- THE FIX 1: Create a single, reusable generation config ---
+            # --- THE FIX: Reverted to a simple, clean generation config ---
+            # This configuration trusts the model to use the tools based on their descriptions,
+            # which was the behavior that worked correctly before.
             generation_config = types.GenerateContentConfig(
-                tools=[gemini_tools],
-                system_instruction="""
-You are an expert, autonomous software engineering AI. Your sole purpose is to complete user-given tasks by interacting with a local file system and command line using a specific set of tools. You MUST operate under the following principles and directives.
-
-## Core Philosophy: Trust, but Verify
-
-1.  **Maintain Conversational Context:** You MUST remember the entire conversation history, including the user's previous requests and your own previous actions and responses. Use this context to understand follow-up requests.
-2.  **The File System is the Ground Truth:** The user's file system is the ultimate source of truth. While you remember our conversation (e.g., that you *tried* to edit a file), you MUST NOT assume a file operation succeeded or that a file's content is what you expect it to be. You MUST use your tools to read and verify the state of files before and after you act.
-3.  **Be Methodical and Cautious:** Break down every complex task into a sequence of small, verifiable steps. Your operational loop for any given task is always: **Plan -> Act -> Observe -> Repeat**.
-
-## Tool Usage Mandates: Your Constitution
-
-You MUST adhere to these rules for tool selection. Misusing a tool will lead to failure.
-
-#### 1. `directory_tree_viewer`
--   **Purpose:** Your "high-level sight." Use this to quickly understand the project's folder and file structure.
--   **Mandatory Use Cases:** As the **very first step** in a new or unfamiliar project to get a "map" of the codebase.
-
-#### 2. `codebase_snapshot_generator`
--   **Purpose:** Your "detailed sight." Use this to read the complete, line-numbered contents of an entire directory.
--   **Mandatory Use Cases:** After getting the layout, use this tool to read the actual code to formulate a detailed implementation plan.
-
-#### 3. `codebase_restorer`
--   **Purpose:** For bulk-writing operations. It overwrites completely.
--   **Mandatory Use Cases:** 1. Creating entirely new files. 2. Completely replacing the content of an existing file.
--   **PROHIBITED USE CASES:** **You MUST NOT use this tool for small edits, insertions, or deletions.**
-
-#### 4. `line_editor`
--   **Purpose:** Your surgical scalpel for modifying **existing** files.
--   **Mandatory Use Cases:** Adding, deleting, or changing specific lines in a file. This is your primary modification tool.
-
-#### 5. `file_fetcher`
--   **Purpose:** Your "focused sight" for reading a **single** file.
--   **Mandatory Use Cases:** To verify the result of a `line_editor` or `codebase_restorer` operation on a single file before proceeding.
-
-#### 6. `file_deleter`
--   **Purpose:** To remove files.
--   **Mandatory Use Cases:** Deleting temporary or obsolete source files as part of a refactoring task.
-
-#### 7. `cli_commander`
--   **Purpose:** Your interface to the shell for **ANY** action that is not direct file reading or writing.
--   **Mandatory Use Cases:** **Validation via tests (`pytest`)**, running the application (`python main.py`), installing dependencies (`pip install`), using version control (`git status`). This is your primary way to verify the correctness of your code.
-
-## Final Directive
-Always think step-by-step. Use the conversational history to inform your plan. Announce your plan, execute a single tool, analyze the result, and then announce your next plan. Your goal is to be a transparent and reliable engineer.
-                """,
-                # This enables the model's internal reasoning process.
-                thinking_config=types.ThinkingConfig(
-                    include_thoughts=True
-                )
+                tools=[gemini_tools]
             )
 
             print("\nAvailable Tools:")
@@ -140,18 +88,13 @@ Always think step-by-step. Use the conversational history to inform your plan. A
             print("🤖 CLI SWE AI is ready. Type your task, or 'exit' to quit.")
             print("="*50 + "\n")
 
-            # --- THE FIX 2: Initialize history OUTSIDE the main loop ---
             history = []
 
             while True:
                 user_task = input("➡️  You: ")
-                if user_task.lower() in ["exit", "quit"]:
-                    print("👋 Goodbye!")
-                    break
-                if not user_task.strip():
-                    continue
+                if user_task.lower() in ["exit", "quit"]: break
+                if not user_task.strip(): continue
 
-                # --- THE FIX 3: APPEND the new user message to the persistent history ---
                 history.append(types.Content(role='user', parts=[types.Part.from_text(text=user_task)]))
                 
                 print("\n💡 Thinking...")
@@ -163,23 +106,15 @@ Always think step-by-step. Use the conversational history to inform your plan. A
                     response = await client.aio.models.generate_content(
                         model=MODEL_NAME,
                         contents=history,
-                        config=generation_config # Pass the full config object here
+                        config=generation_config
                     )
                     candidate = response.candidates[0]
-
-                    # --- THE FIX 4: Loop through parts to print thought summaries ---
-                    has_thought = False
-                    for part in candidate.content.parts:
-                        if hasattr(part, 'thought') and part.thought:
-                            if not has_thought:
-                                print("🤔 AI's Thoughts:")
-                                has_thought = True
-                            # Indent the thought for readability
-                            print(textwrap.indent(part.text, '    '))
-
-                    if not candidate.content.parts or not candidate.content.parts[0].function_call:
-                        break # The model has a final text answer
                     
+                    # If there's no function call, it's the final answer. Break the loop.
+                    if not candidate.content.parts or not candidate.content.parts[0].function_call:
+                        break
+                    
+                    # Otherwise, execute the function call
                     history.append(candidate.content)
                     function_call = candidate.content.parts[0].function_call
                     tool_name = function_call.name
@@ -188,13 +123,9 @@ Always think step-by-step. Use the conversational history to inform your plan. A
                     print(f"⚙️  AI wants to run: {tool_name}({', '.join(f'{k}={v!r}' for k, v in tool_args.items())})")
                     tool_result = await mcp_session.call_tool(tool_name, tool_args)
                     
-                    history.append(
-                        types.Part.from_function_response(
-                            name=tool_name,
-                            response={"result": str(tool_result)}
-                        )
-                    )
+                    history.append(types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)}))
                     print(f"    - Result: {str(tool_result)[:200]}...\n")
+
                     if turn_count < MAX_TOOL_TURNS:
                         print("💡 Thinking...")
                 
@@ -204,7 +135,6 @@ Always think step-by-step. Use the conversational history to inform your plan. A
                     print(line)
                 print("="*15 + "\n")
                 
-                # --- THE FIX 5: Append the final model response to history ---
                 if response.candidates:
                     history.append(response.candidates[0].content)
 
@@ -217,4 +147,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nInterrupted by user. Exiting.")
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"❌ An unexpected error occurred: {e}")
+        traceback.print_exc()
