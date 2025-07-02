@@ -9,6 +9,7 @@ from typing import List, Any, Dict
 import asyncio
 import traceback
 from system_prompt import AI_SYSTEM_PROMPT
+
 # Attempt to import necessary libraries
 try:
     from dotenv import load_dotenv
@@ -28,13 +29,13 @@ except ImportError:
     print("pip install google-genai rich python-dotenv anyio")
     sys.exit(1)
 
-# Attempt to import the Google GenAI library
+# Attempt to import the Google GenAI library (the NEW SDK)
 try:
     from google import genai
     from google.genai import types
     from google.genai import errors as genai_errors
 except ImportError:
-    print("Error: The Google GenAI library is not installed.")
+    print("Error: The NEW 'google-genai' library is not installed.")
     print("Please run the following command to install it:")
     print("pip install google-genai")
     sys.exit(1)
@@ -56,9 +57,8 @@ sys.stdout.reconfigure(encoding='utf-8')
 # --- Configuration ---
 load_dotenv()
 
+# Use a supported model for the "thinking" feature
 MODEL_NAME = "gemini-2.5-flash"
-
-# --- THE FIX 1: Define a concise, one-line system prompt ---
 SYSTEM_PROMPT = AI_SYSTEM_PROMPT
 MCP_SERVER_SCRIPT = "swe_tools.run_server"
 MAX_TOOL_TURNS = 15
@@ -85,7 +85,7 @@ THEME = {
 }
 console = Console()
 
-# --- Helper Function (No changes needed) ---
+# --- Helper Function ---
 def mcp_tool_to_genai_tool(mcp_tool: MCPTool) -> types.FunctionDeclaration:
     gemini_properties: Dict[str, Any] = {}
     required_params: List[str] = []
@@ -105,23 +105,6 @@ def mcp_tool_to_genai_tool(mcp_tool: MCPTool) -> types.FunctionDeclaration:
     )
 
 # --- Application Logic ---
-def get_gemini_client():
-    """Initializes and returns the Gemini client."""
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        print_message("GOOGLE_API_KEY not found in your environment.", role="error")
-        sys.exit(1)
-    try:
-        client = genai.Client(api_key=api_key)
-        _ = client.models.list()
-        return client
-    except genai_errors.APIError as e:
-        print_message(f"API Error\n\nDetails: {e}", role="error")
-        sys.exit(1)
-    except Exception as e:
-        print_message(f"Unexpected Error on Client Init\n\nDetails: {e}", role="error")
-        sys.exit(1)
-
 def print_message(text: str, role: str = "info"):
     """Prints a styled message panel."""
     timestamp = datetime.now().strftime('%H:%M:%S')
@@ -135,11 +118,17 @@ def print_message(text: str, role: str = "info"):
     elif role == "bot":
         title_markup = f"[{THEME['bot_title']}]{THEME['bot_title_icon']} {BOT_NAME} [dim]({timestamp})[/]"
         border_color = THEME["accent_border"]
+    elif role == "thinking":
+        title_markup = f"[{THEME['thought_title']}]{THEME['thinking_title_icon']} Thinking [dim]({timestamp})[/]"
+        border_color = THEME["thought_title"]
     elif role == "error":
         title_markup = f"[{THEME['error_title']}]{THEME['error_title_icon']} Error [dim]({timestamp})[/]"
         border_color = "red"
     else: # info
         title_markup = f"[{THEME['info_title']}]{THEME['info_title_icon']} Info [dim]({timestamp})[/]"
+
+    if not text.strip():
+        return
 
     console.print(Panel(
         Markdown(text, inline_code_lexer="python"),
@@ -151,7 +140,6 @@ def print_message(text: str, role: str = "info"):
     ))
 
 def show_welcome_screen():
-    """Displays the initial welcome message."""
     welcome_text = Text(f"""
  ██████╗ ███████╗███╗   ███╗██╗███╗   ██╗██╗
 ██╔════╝ ██╔════╝████╗ ████║██║████╗  ██║██║
@@ -171,10 +159,13 @@ def show_welcome_screen():
 
 async def main():
     """Main function to run the chat application."""
-    client = get_gemini_client()
-    
-    print_message("🤖 CLI SWE AI Initializing...")
-    print_message(f"🧠 Using Model: {MODEL_NAME}")
+    try:
+        client = genai.Client()
+    except Exception as e:
+        print_message(f"Failed to create Gen AI Client. Is GOOGLE_API_KEY set?\n\nDetails: {e}", role="error")
+        sys.exit(1)
+
+    print_message(f"🤖 CLI SWE AI Initializing... Using Model: {MODEL_NAME}")
     print_message(f"🛠️  Looking for tool server: {MCP_SERVER_SCRIPT}")
 
     server_params = StdioServerParameters(command=sys.executable, args=["-m", MCP_SERVER_SCRIPT], env={**os.environ.copy(), 'PYTHONPATH': os.getcwd()})
@@ -190,12 +181,15 @@ async def main():
                     print_message("❌ ERROR: No tools found on the MCP server.", role="error")
                     return
 
-                gemini_tools = types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools])
-                
-                # --- THE FIX 2: Add the system_instruction to the config ---
+                gemini_tools = [types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools])]
+
                 generation_config = types.GenerateContentConfig(
-                    tools=[gemini_tools],
-                    system_instruction=SYSTEM_PROMPT
+                    system_instruction=SYSTEM_PROMPT,
+                    tools=gemini_tools,
+                    thinking_config=types.ThinkingConfig(
+                        include_thoughts=True,
+                        thinking_budget=-1
+                    )
                 )
 
                 show_welcome_screen()
@@ -212,60 +206,75 @@ async def main():
 
                         print_message(user_task, role="user")
                         history.append(types.Content(role='user', parts=[types.Part.from_text(text=user_task)]))
-                        
-                        final_answer = ""
+
+                        final_response = None
                         spinner = Spinner(THEME["thinking_spinner"], text=Text(" Thinking...", style=THEME["thought_title"]))
-                        
+
                         with Live(spinner, console=console, screen=False, auto_refresh=True, vertical_overflow="visible", transient=True) as live:
                             turn_count = 0
                             while turn_count < MAX_TOOL_TURNS:
                                 turn_count += 1
-                                
+
                                 response = await client.aio.models.generate_content(
                                     model=MODEL_NAME,
                                     contents=history,
                                     config=generation_config
                                 )
                                 candidate = response.candidates[0]
-                                
-                                if not candidate.content.parts or not candidate.content.parts[0].function_call:
-                                    final_answer = response.text
+
+                                # FIX: Robustly check if a valid function_call object exists in any part.
+                                if not any(hasattr(part, 'function_call') and part.function_call for part in candidate.content.parts):
+                                    final_response = response
                                     break
-                                
+
                                 history.append(candidate.content)
-                                function_call = candidate.content.parts[0].function_call
+                                function_call_part = next((p for p in candidate.content.parts if hasattr(p, 'function_call') and p.function_call), None)
+                                
+                                if not function_call_part:
+                                    final_response = response
+                                    break
+
+                                function_call = function_call_part.function_call
                                 tool_name = function_call.name
                                 tool_args = dict(function_call.args)
 
                                 live.stop()
-                                tool_message = f"Calling tool `{tool_name}` with arguments: `{tool_args}`"
-                                print_message(tool_message, role="info")
-                                
+                                print_message(f"Calling tool `{tool_name}` with arguments: `{tool_args}`", role="info")
                                 tool_result = await mcp_session.call_tool(tool_name, tool_args)
-                                
                                 history.append(types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)}))
                                 print_message(f"Tool `{tool_name}` returned a result.", role="info")
-
                                 live.start()
-                                live.update(spinner)
 
-                            if turn_count >= MAX_TOOL_TURNS:
-                                final_answer = "Task may be incomplete due to reaching the maximum number of tool turns."
+                            if not final_response:
+                                print_message("Task may be incomplete due to reaching the maximum number of tool turns.", role="bot")
 
-                        if final_answer:
-                            print_message(final_answer, role="bot")
-                            history.append(types.Content(role="model", parts=[types.Part.from_text(text=final_answer)]))
-                        
+                        if final_response:
+                            thoughts_text = ""
+                            answer_text = ""
+                            for part in final_response.candidates[0].content.parts:
+                                if not hasattr(part, 'text') or not part.text:
+                                    continue
+                                if hasattr(part, 'thought') and part.thought:
+                                    thoughts_text += part.text
+                                else:
+                                    answer_text += part.text
+
+                            if thoughts_text:
+                                print_message(thoughts_text, role="thinking")
+                            if answer_text:
+                                print_message(answer_text, role="bot")
+                                history.append(final_response.candidates[0].content)
+
                         console.print(Rule(style=THEME["separator_style"]))
 
                     except KeyboardInterrupt:
                         print_message("\nChat interrupted by user. Exiting.", role="info")
                         break
                     except Exception as e:
-                        print_message(f"An error occurred during generation or tool execution: {e}", role="error")
+                        print_message(f"An error occurred: {e}", role="error")
                         traceback.print_exc()
                         continue
-    
+
     except Exception as e:
         print_message(f"❌ An unexpected error occurred during MCP server connection: {e}", role="error")
         traceback.print_exc()
