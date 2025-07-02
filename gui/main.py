@@ -13,7 +13,7 @@ from rich.rule import Rule
 from google.genai import types
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
-from gui.config import MODEL_NAME, SYSTEM_PROMPT, MCP_SERVER_SCRIPT, MAX_TOOL_TURNS, THEME
+from gui.config import MODEL_NAME, SYSTEM_PROMPT, MCP_SERVER_SCRIPT, MAX_TOOL_TURNS, THEME, BOT_NAME
 from gui.ui import print_message, show_welcome_screen, console
 from gui.client import get_gemini_client
 from gui.tool_utils import mcp_tool_to_genai_tool
@@ -69,65 +69,85 @@ async def main():
                         final_answer = ""
                         spinner = Spinner(THEME["thinking_spinner"], text=Text(" Thinking...", style=THEME["thought_title"]))
                         
-                        with Live(spinner, console=console, screen=False, auto_refresh=True, vertical_overflow="visible", transient=True) as live:
-                            turn_count = 0
-                            while turn_count < MAX_TOOL_TURNS:
-                                turn_count += 1
-                                
+                        from rich.markdown import Markdown
+                        from rich.panel import Panel
+                        from datetime import datetime
+
+                        turn_count = 0
+                        while turn_count < MAX_TOOL_TURNS:
+                            turn_count += 1
+                            
+                            with Live(spinner, console=console, screen=False, auto_refresh=True, vertical_overflow="visible", transient=True) as live:
                                 stream = await client.aio.models.generate_content_stream(
                                     model=MODEL_NAME,
                                     contents=history,
                                     config=generation_config
                                 )
                                 
-                                thoughts = ""
-                                answer = ""
+                                thoughts_md = Markdown("")
+                                answer_md = Markdown("")
                                 function_call = None
                                 response_content_parts = []
+                                active_section = None
+                                live_panel = None
 
                                 async for chunk in stream:
+                                    if live_panel is None:
+                                        # First chunk received, switch from spinner to panel
+                                        timestamp = datetime.now().strftime('%H:%M:%S')
+                                        title_markup = f"[{THEME['info_title']}]{THEME['info_title_icon']} Thoughts [dim]({timestamp})[/]"
+                                        live_panel = Panel(
+                                            thoughts_md,
+                                            title=Text.from_markup(title_markup),
+                                            border_style=THEME["panel_border"],
+                                            title_align="left",
+                                            padding=(1, 2)
+                                        )
+                                        live.update(live_panel)
+
                                     for part in chunk.candidates[0].content.parts:
                                         if hasattr(part, 'function_call') and part.function_call:
                                             function_call = part.function_call
                                         
                                         if part.text:
                                             if hasattr(part, 'thought') and part.thought:
-                                                if not thoughts:
-                                                    print_message("Thoughts:", role="info")
-                                                print_message(part.text, role="info", end="")
-                                                thoughts += part.text
+                                                active_section = 'thoughts'
+                                                thoughts_md.markup += part.text
                                             else:
-                                                if not answer:
-                                                    print_message("Answer:", role="bot")
-                                                print_message(part.text, role="bot", end="")
-                                                answer += part.text
+                                                if active_section != 'answer':
+                                                    active_section = 'answer'
+                                                    # Switch panel to answer style
+                                                    timestamp = datetime.now().strftime('%H:%M:%S')
+                                                    title_markup = f"[{THEME['bot_title']}]{THEME['bot_title_icon']} {BOT_NAME} [dim]({timestamp})[/]"
+                                                    live_panel.title = Text.from_markup(title_markup)
+                                                    live_panel.border_style = THEME["accent_border"]
+                                                    live_panel.renderable = answer_md
+                                                answer_md.markup += part.text
                                     
                                     response_content_parts.extend(chunk.candidates[0].content.parts)
-
                                     if function_call:
                                         break
-                                if function_call:
-                                    history.append(types.Content(role="model", parts=response_content_parts))
-                                    tool_name = function_call.name
-                                    tool_args = dict(function_call.args)
+                            
+                            # After the stream
+                            if function_call:
+                                history.append(types.Content(role="model", parts=response_content_parts))
+                                tool_name = function_call.name
+                                tool_args = dict(function_call.args)
 
-                                    live.stop()
-                                    tool_message = f"Calling tool `{tool_name}` with arguments: `{tool_args}`"
-                                    print_message(tool_message, role="info")
-                                    
-                                    tool_result = await mcp_session.call_tool(tool_name, tool_args)
-                                    
-                                    history.append(types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)}))
-                                    print_message(f"Tool `{tool_name}` returned a result.", role="info")
+                                tool_message = f"Calling tool `{tool_name}` with arguments: `{tool_args}`"
+                                print_message(tool_message, role="info")
+                                
+                                tool_result = await mcp_session.call_tool(tool_name, tool_args)
+                                
+                                history.append(types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)}))
+                                print_message(f"Tool `{tool_name}` returned a result.", role="info")
+                                # Loop continues to next turn
+                            else:
+                                final_answer = answer_md.markup
+                                break # Exit the while loop
 
-                                    live.start()
-                                    live.update(spinner)
-                                else:
-                                    final_answer = answer
-                                    break
-
-                            if turn_count >= MAX_TOOL_TURNS:
-                                final_answer = "Task may be incomplete due to reaching the maximum number of tool turns."
+                        if turn_count >= MAX_TOOL_TURNS:
+                            final_answer = "Task may be incomplete due to reaching the maximum number of tool turns."
 
                         if final_answer:
                             print_message(final_answer, role="bot")
