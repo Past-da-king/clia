@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import List, Any, Dict
 import asyncio
 import traceback
-
+from system_prompt import AI_SYSTEM_PROMPT
 # Attempt to import necessary libraries
 try:
     from dotenv import load_dotenv
@@ -56,7 +56,10 @@ sys.stdout.reconfigure(encoding='utf-8')
 # --- Configuration ---
 load_dotenv()
 
-MODEL_NAME = "gemini-2.5-flash-lite-preview-06-17"
+MODEL_NAME = "gemini-2.5-flash"
+
+# --- THE FIX 1: Define a concise, one-line system prompt ---
+SYSTEM_PROMPT = AI_SYSTEM_PROMPT
 MCP_SERVER_SCRIPT = "swe_tools.run_server"
 MAX_TOOL_TURNS = 15
 
@@ -188,7 +191,12 @@ async def main():
                     return
 
                 gemini_tools = types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools])
-                generation_config = types.GenerateContentConfig(tools=[gemini_tools])
+                
+                # --- THE FIX 2: Add the system_instruction to the config ---
+                generation_config = types.GenerateContentConfig(
+                    tools=[gemini_tools],
+                    system_instruction=SYSTEM_PROMPT
+                )
 
                 show_welcome_screen()
                 history = []
@@ -246,7 +254,6 @@ async def main():
 
                         if final_answer:
                             print_message(final_answer, role="bot")
-                            # --- THE FIX: Use the keyword argument `text=` ---
                             history.append(types.Content(role="model", parts=[types.Part.from_text(text=final_answer)]))
                         
                         console.print(Rule(style=THEME["separator_style"]))
