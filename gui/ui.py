@@ -11,14 +11,16 @@ from gui.config import THEME, USER_NAME, BOT_NAME, MODEL_NAME
 
 console = Console()
 
-def print_message(text: str, role: str = "info", end: str = "\n"):
+def print_message(text: str, role: str = "info", title: str | None = None, end: str = "\n"):
     """Prints a styled message panel."""
     timestamp = datetime.now().strftime('%H:%M:%S')
     box_preset = box.ROUNDED
     border_color = THEME["panel_border"]
     title_markup = ""
 
-    if role == "user":
+    if title:
+        title_markup = f"[{THEME['info_title']}]{THEME['info_title_icon']} {title} [dim]({timestamp})[/]"
+    elif role == "user":
         title_markup = f"[{THEME['user_title']}]{THEME['user_title_icon']} {USER_NAME} [dim]({timestamp})[/]"
         box_preset = box.HEAVY
     elif role == "bot":

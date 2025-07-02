@@ -126,6 +126,9 @@ async def main():
                                     
                                     response_content_parts.extend(chunk.candidates[0].content.parts)
                                     if function_call:
+                                        live.stop()
+                                        if thoughts_md.markup:
+                                            print_message(thoughts_md.markup, role="info", title="Thoughts")
                                         break
                             
                             # After the stream
