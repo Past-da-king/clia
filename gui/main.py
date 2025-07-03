@@ -173,8 +173,15 @@ async def main():
                     except KeyboardInterrupt:
                         print_message("\nChat interrupted by user. Exiting.", role="info")
                         break
+                    except genai_errors.ClientError as e:
+                        if e.status_code == 429:
+                            print_message("You have exceeded your API quota. Please wait a minute and try again, or check your Google AI Studio quota settings.", role="error", title="Rate Limit Exceeded")
+                        else:
+                            print_message(f"An API error occurred: {e}", role="error")
+                        traceback.print_exc()
+                        continue
                     except Exception as e:
-                        print_message(f"An error occurred during generation or tool execution: {e}", role="error")
+                        print_message(f"An unexpected error occurred during generation or tool execution: {e}", role="error")
                         traceback.print_exc()
                         continue
     

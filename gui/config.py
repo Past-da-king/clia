@@ -17,12 +17,12 @@ USER_NAME = "You"
 BOT_NAME = "Gemini"
 THEME = {
     "user_prompt_icon": "❯",
-    "user_title_icon": "👤",
-    "bot_title_icon": "🤖",
-    "thinking_title_icon": "🧠",
-    "info_title_icon": "ℹ️",
-    "error_title_icon": "❗",
-    "tool_call_icon": "🛠️",
+    "user_title_icon": "●", # Filled circle
+    "bot_title_icon": "◆", # Diamond
+    "thinking_title_icon": "…", # Ellipsis
+    "info_title_icon": "i", # Lowercase i for info
+    "error_title_icon": "✕", # Multiplication X
+    "tool_call_icon": "⚙", # Gear
     "user_title": "bold #FF69B4",  # Hot Pink
     "bot_title": "bold #6495ED",  # Cornflower Blue
     "error_title": "bold #FF4500", # Orange Red
