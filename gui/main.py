@@ -147,6 +147,8 @@ async def main():
                                 # Loop continues to next turn
                             else:
                                 final_answer = answer_md.markup
+                                if thoughts_md.markup:
+                                    print_message(thoughts_md.markup, role="info", title="Thoughts")
                                 break # Exit the while loop
 
                         if turn_count >= MAX_TOOL_TURNS:
