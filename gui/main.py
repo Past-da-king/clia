@@ -92,19 +92,6 @@ async def main():
                                 live_panel = None
 
                                 async for chunk in stream:
-                                    if live_panel is None:
-                                        # First chunk received, switch from spinner to panel
-                                        timestamp = datetime.now().strftime('%H:%M:%S')
-                                        title_markup = f"[{THEME['info_title']}]{THEME['info_title_icon']} Thoughts [dim]({timestamp})[/]"
-                                        live_panel = Panel(
-                                            thoughts_md,
-                                            title=Text.from_markup(title_markup),
-                                            border_style=THEME["panel_border"],
-                                            title_align="left",
-                                            padding=(1, 2)
-                                        )
-                                        live.update(live_panel)
-
                                     for part in chunk.candidates[0].content.parts:
                                         if hasattr(part, 'function_call') and part.function_call:
                                             function_call = part.function_call
@@ -119,12 +106,35 @@ async def main():
                                                     # Switch panel to answer style
                                                     timestamp = datetime.now().strftime('%H:%M:%S')
                                                     title_markup = f"[{THEME['bot_title']}]{THEME['bot_title_icon']} {BOT_NAME} [dim]({timestamp})[/]"
-                                                    live_panel.title = Text.from_markup(title_markup)
-                                                    live_panel.border_style = THEME["accent_border"]
-                                                    live_panel.renderable = answer_md
+                                                    if live_panel is not None:
+                                                        live_panel.title = Text.from_markup(title_markup)
+                                                        live_panel.border_style = THEME["accent_border"]
+                                                        live_panel.renderable = answer_md
+                                                    else:
+                                                        live_panel = Panel(
+                                                            answer_md,
+                                                            title=Text.from_markup(title_markup),
+                                                            border_style=THEME["accent_border"],
+                                                            title_align="left",
+                                                            padding=(1, 2)
+                                                        )
+                                                        live.update(live_panel)
                                                 answer_md.markup += part.text
                                     
                                     response_content_parts.extend(chunk.candidates[0].content.parts)
+
+                                    if live_panel is None and thoughts_md.markup:
+                                        timestamp = datetime.now().strftime('%H:%M:%S')
+                                        title_markup = f"[{THEME['info_title']}]{THEME['info_title_icon']} Thoughts [dim]({timestamp})[/]"
+                                        live_panel = Panel(
+                                            thoughts_md,
+                                            title=Text.from_markup(title_markup),
+                                            border_style=THEME["panel_border"],
+                                            title_align="left",
+                                            padding=(1, 2)
+                                        )
+                                        live.update(live_panel)
+
                                     if function_call:
                                         live.stop()
                                         if thoughts_md.markup:
@@ -138,12 +148,12 @@ async def main():
                                 tool_args = dict(function_call.args)
 
                                 tool_message = f"Calling tool `{tool_name}` with arguments: `{tool_args}`"
-                                print_message(tool_message, role="info")
+                                print_message(tool_message, role="tool_code")
                                 
                                 tool_result = await mcp_session.call_tool(tool_name, tool_args)
                                 
                                 history.append(types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)}))
-                                print_message(f"Tool `{tool_name}` returned a result.", role="info")
+                                print_message(f"Tool `{tool_name}` returned a result.", role="tool_code")
                                 # Loop continues to next turn
                             else:
                                 final_answer = answer_md.markup

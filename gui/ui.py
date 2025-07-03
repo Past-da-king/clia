@@ -29,6 +29,9 @@ def print_message(text: str, role: str = "info", title: str | None = None, end: 
     elif role == "error":
         title_markup = f"[{THEME['error_title']}]{THEME['error_title_icon']} Error [dim]({timestamp})[/]"
         border_color = "red"
+    elif role == "tool_code":
+        title_markup = f"[{THEME['tool_call_style']}]{THEME['tool_call_icon']} Tool Call [dim]({timestamp})[/]"
+        border_color = THEME["tool_call_style"]
     else: # info
         title_markup = f"[{THEME['info_title']}]{THEME['info_title_icon']} Info [dim]({timestamp})[/]"
 
@@ -43,15 +46,17 @@ def print_message(text: str, role: str = "info", title: str | None = None, end: 
 
 def show_welcome_screen():
     """Displays the initial welcome message."""
-    welcome_text = Text(f"""
- ██████╗ ███████╗███╗   ███╗██╗███╗   ██╗██╗
+    welcome_text = Text("""
+
+██████╗ ███████╗███╗   ███╗██╗███╗   ██╗██╗
 ██╔════╝ ██╔════╝████╗ ████║██║████╗  ██║██║
 ██║  ███╗█████╗  ██╔████╔██║██║██╔██╗ ██║██║
 ██║   ██║██╔══╝  ██║╚██╔╝██║██║██║╚██╗██║██║
 ╚██████╔╝███████╗██║ ╚═╝ ██║██║██║ ╚████║██║
  ╚═════╝ ╚══════╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═╝
-""", style="bold cyan", justify="center")
-    welcome_subtext = Text(f"Welcome! You are chatting with {MODEL_NAME}.", justify="center")
+
+""", style="bold #6495ED", justify="center") # Changed color to Cornflower Blue
+    welcome_subtext = Text(f"Welcome! You are chatting with {MODEL_NAME}.", justify="center", style="#32CD32") # Changed color to Lime Green
     panel = Panel(
         Text.from_markup(f"{welcome_text}\n\n{welcome_subtext}"),
         title=f"[{THEME['info_title']}]Connection Established[/]",

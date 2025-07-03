@@ -22,13 +22,15 @@ THEME = {
     "thinking_title_icon": "🧠",
     "info_title_icon": "ℹ️",
     "error_title_icon": "❗",
-    "user_title": "bold #F5A9B8",
-    "bot_title": "bold #89CFF0",
-    "error_title": "bold #FF5733",
-    "info_title": "bold #FFC300",
-    "thought_title": "#FFC300",
-    "panel_border": "#3A3B3C",
-    "accent_border": "#89CFF0",
-    "thinking_spinner": "arc",
-    "separator_style": "#3A3B3C",
+    "tool_call_icon": "🛠️",
+    "user_title": "bold #FF69B4",  # Hot Pink
+    "bot_title": "bold #6495ED",  # Cornflower Blue
+    "error_title": "bold #FF4500", # Orange Red
+    "info_title": "bold #32CD32", # Lime Green
+    "thought_title": "#FFD700", # Gold
+    "tool_call_style": "bold #8A2BE2", # Blue Violet
+    "panel_border": "#4F4F4F", # Dim Gray
+    "accent_border": "#6495ED", # Cornflower Blue
+    "thinking_spinner": "dots", # Changed spinner style
+    "separator_style": "#4F4F4F", # Dim Gray
 }
