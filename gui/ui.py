@@ -32,6 +32,9 @@ def print_message(text: str, role: str = "info", title: str | None = None, end: 
     elif role == "tool_code":
         title_markup = f"[{THEME['tool_call_style']}]{THEME['tool_call_icon']} Tool Call [dim]({timestamp})[/]"
         border_color = THEME["tool_call_style"]
+    elif role == "file_tag":
+        title_markup = f"[{THEME['info_title']}]{THEME['file_tag_icon']} File Tag [dim]({timestamp})[/]"
+        border_color = THEME["panel_border"]
     else: # info
         title_markup = f"[{THEME['info_title']}]{THEME['info_title_icon']} Info [dim]({timestamp})[/]"
 

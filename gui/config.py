@@ -23,6 +23,7 @@ THEME = {
     "info_title_icon": "i", # Lowercase i for info
     "error_title_icon": "✕", # Multiplication X
     "tool_call_icon": "⚙", # Gear
+    "file_tag_icon": "📄", # Document icon
     "user_title": "bold #FF69B4",  # Hot Pink
     "bot_title": "bold #6495ED",  # Cornflower Blue
     "error_title": "bold #FF4500", # Orange Red

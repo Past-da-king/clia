@@ -5,16 +5,22 @@ import os
 import sys
 import asyncio
 import traceback
+import re 
+from datetime import datetime 
 from rich.live import Live
 from rich.prompt import Prompt
 from rich.spinner import Spinner
 from rich.text import Text
 from rich.rule import Rule
+from rich.panel import Panel 
+from rich.markdown import Markdown 
 from google.genai import types
+from google.genai import errors as genai_errors
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
 from gui.config import MODEL_NAME, SYSTEM_PROMPT, MCP_SERVER_SCRIPT, MAX_TOOL_TURNS, THEME, BOT_NAME
-from gui.ui import print_message, show_welcome_screen, console
+from gui.ui import print_message, show_welcome_screen, console 
+from gui.file_selector import FileSelector 
 from gui.client import get_gemini_client
 from gui.tool_utils import mcp_tool_to_genai_tool
 
@@ -53,26 +59,71 @@ async def main():
 
                 show_welcome_screen()
                 history = []
-
-                while True:
+                
+                while True: 
                     try:
-                        user_task = Prompt.ask(Text(f"{THEME['user_prompt_icon']} ", style=THEME['user_title']))
-                        if user_task.lower() in ["exit", "quit"]:
+                        user_task_raw = Prompt.ask(Text(f"{THEME['user_prompt_icon']} ", style=THEME['user_title']))
+                        
+                        if user_task_raw.lower() in ["exit", "quit"]:
                             print_message("Session ended. Goodbye!")
                             break
-                        if not user_task.strip():
+                        if not user_task_raw.strip():
                             continue
 
-                        print_message(user_task, role="user")
-                        history.append(types.Content(role='user', parts=[types.Part.from_text(text=user_task)]))
+                        user_task_parts = []
+                        tagged_files = []
+                        current_text_part = ""
+
+                        file_tag_pattern = re.compile(r"@([\w./\-]+)")
+
+                        last_idx = 0
+                        for match in file_tag_pattern.finditer(user_task_raw):
+                            if match.start() > last_idx:
+                                current_text_part += user_task_raw[last_idx:match.start()]
+                            
+                            if current_text_part:
+                                user_task_parts.append(types.Part.from_text(text=current_text_part))
+                                current_text_part = ""
+
+                            file_path = match.group(1)
+                            if os.path.exists(file_path):
+                                tagged_files.append(file_path)
+                                print_message(f"File added: {file_path}", role="file_tag")
+                            else:
+                                print_message(f"File not found: {file_path}", role="error")
+                            last_idx = match.end()
+                        
+                        if last_idx < len(user_task_raw):
+                            current_text_part += user_task_raw[last_idx:]
+                        
+                        if current_text_part:
+                            user_task_parts.append(types.Part.from_text(text=current_text_part))
+
+                        if not user_task_parts and not tagged_files:
+                            continue
+
+                        print_message(user_task_raw, role="user")
+                        
+                        content_parts = user_task_parts
+                        for file_path in tagged_files:
+                            try:
+                                # get_file_part returns a types.File object
+                                uploaded_file = await FileSelector(os.getcwd()).get_file_part(client, file_path)
+                                if uploaded_file:
+                                    # --- FIX: Create a proper Part from the uploaded File object ---
+                                    file_part = types.Part(file_data=types.FileData(
+                                        mime_type=uploaded_file.mime_type,
+                                        file_uri=uploaded_file.uri
+                                    ))
+                                    content_parts.append(file_part)
+                            except Exception as e:
+                                print_message(f"Error processing file {file_path}: {e}", role="error")
+
+                        history.append(types.Content(role='user', parts=content_parts))
                         
                         final_answer = ""
                         spinner = Spinner(THEME["thinking_spinner"], text=Text(" Thinking...", style=THEME["thought_title"]))
                         
-                        from rich.markdown import Markdown
-                        from rich.panel import Panel
-                        from datetime import datetime
-
                         turn_count = 0
                         while turn_count < MAX_TOOL_TURNS:
                             turn_count += 1
@@ -103,7 +154,6 @@ async def main():
                                             else:
                                                 if active_section != 'answer':
                                                     active_section = 'answer'
-                                                    # Switch panel to answer style
                                                     timestamp = datetime.now().strftime('%H:%M:%S')
                                                     title_markup = f"[{THEME['bot_title']}]{THEME['bot_title_icon']} {BOT_NAME} [dim]({timestamp})[/]"
                                                     if live_panel is not None:
@@ -141,7 +191,6 @@ async def main():
                                             print_message(thoughts_md.markup, role="info", title="Thoughts")
                                         break
                             
-                            # After the stream
                             if function_call:
                                 history.append(types.Content(role="model", parts=response_content_parts))
                                 tool_name = function_call.name
@@ -154,12 +203,11 @@ async def main():
                                 
                                 history.append(types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)}))
                                 print_message(f"Tool `{tool_name}` returned a result.", role="tool_code")
-                                # Loop continues to next turn
                             else:
                                 final_answer = answer_md.markup
                                 if thoughts_md.markup:
                                     print_message(thoughts_md.markup, role="info", title="Thoughts")
-                                break # Exit the while loop
+                                break
 
                         if turn_count >= MAX_TOOL_TURNS:
                             final_answer = "Task may be incomplete due to reaching the maximum number of tool turns."
@@ -174,10 +222,7 @@ async def main():
                         print_message("\nChat interrupted by user. Exiting.", role="info")
                         break
                     except genai_errors.ClientError as e:
-                        if e.status_code == 429:
-                            print_message("You have exceeded your API quota. Please wait a minute and try again, or check your Google AI Studio quota settings.", role="error", title="Rate Limit Exceeded")
-                        else:
-                            print_message(f"An API error occurred: {e}", role="error")
+                        print_message(f"An API error occurred: {e}", role="error")
                         traceback.print_exc()
                         continue
                     except Exception as e:

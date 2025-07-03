@@ -5,7 +5,7 @@ from rich.text import Text
 from rich.panel import Panel
 from rich.live import Live
 from rich.prompt import Prompt
-from rich.keys import Key
+
 from typing import List, Tuple, Optional
 from google.genai import types # Assuming genai client is available
 
@@ -23,7 +23,7 @@ class FileSelector:
         # Add ".." for navigating up
         parent_dir = os.path.dirname(self.current_path)
         if self.current_path != parent_dir: # Check if not at root
-            self.entries.append(".."_)
+            self.entries.append("..")
         
         with os.scandir(self.current_path) as it:
             for entry in sorted(it, key=lambda e: (not e.is_dir(), e.name.lower())):
@@ -85,6 +85,9 @@ class FileSelector:
             # It returns a File object which is compatible with types.Part.
             uploaded_file = await genai_client.aio.files.upload(file=file_path)
             return uploaded_file # This is a types.File object, which is a types.Part
+        except Exception as e:
+            console.print(f"[bold red]Error uploading file {file_path}: {e}[/bold red]")
+            return None
         except Exception as e:
             console.print(f"[bold red]Error uploading file {file_path}: {e}[/bold red]")
             return None
