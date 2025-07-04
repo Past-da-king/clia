@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLI Agent Chat</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* Custom font and scrollbar styles */
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .font-mono {
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* Custom scrollbar for a cleaner look */
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #4a5568; /* gray-600 */
+            border-radius: 3px;
+        }
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #718096; /* gray-500 */
+        }
+        
+        /* Animation for new messages */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .fade-in-up {
+            animation: fadeInUp 0.4s ease-out forwards;
+        }
+
+        /* Blinking cursor animation for typing indicator */
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+        .cursor-blink {
+            animation: blink 1s step-end infinite;
+        }
+    </style>
+    <script>
+        // Customizations for Tailwind CSS
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace'],
+                    },
+                    colors: {
+                      'cli-bg': '#0D1117',
+                      'cli-surface': '#161B22',
+                      'cli-border': '#30363D',
+                      'cli-text': '#C9D1D9',
+                      'cli-text-secondary': '#8B949E',
+                      'cli-accent': '#22D3EE', // cyan-400
+                      'cli-accent-dark': '#06B6D4', // cyan-500
+                      'cli-green': '#34D399', // emerald-400
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-cli-bg text-cli-text antialiased">
+
+    <div class="flex flex-col h-screen max-w-4xl mx-auto border-x border-cli-border">
+        <!-- Chat Header -->
+        <div class="px-6 py-4 border-b border-cli-border bg-cli-surface/80 backdrop-blur-sm">
+            <div class="flex items-center gap-4">
+                <div class="relative flex items-center justify-center w-8 h-8">
+                    <span class="absolute inline-flex h-full w-full rounded-full bg-cli-green/50 animate-ping"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-cli-green"></span>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-white">CLI Agent</h1>
+                    <p class="text-sm text-cli-text-secondary">Status: <span class="text-cli-green">Online</span> // Ready for commands</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Messages -->
+        <div id="messages" class="flex-1 p-6 overflow-y-auto chat-messages">
+            <!-- Messages will be appended here by JavaScript -->
+        </div>
+
+        <!-- Chat Input Area -->
+        <div class="p-4 border-t border-cli-border bg-cli-bg/90 backdrop-blur-sm">
+            <div id="attachedFiles" class="flex flex-wrap gap-2 mb-3"></div>
+            <div class="flex items-end gap-3 p-1 transition-all duration-300 border rounded-lg bg-cli-surface border-cli-border focus-within:border-cli-accent focus-within:ring-2 focus-within:ring-cli-accent/50">
+                <div class="flex items-center pl-2">
+                     <button onclick="document.getElementById('fileUpload').click()" title="Attach File" class="w-8 h-8 transition-colors rounded-md text-cli-text-secondary hover:bg-cli-border hover:text-white">
+                        <i class="fa-solid fa-paperclip"></i>
+                    </button>
+                    <!-- Hidden file inputs -->
+                    <input type="file" id="imageUpload" class="hidden" accept="image/*" onchange="handleFileUpload(this)">
+                    <input type="file" id="videoUpload" class="hidden" accept="video/*" onchange="handleFileUpload(this)">
+                    <input type="file" id="audioUpload" class="hidden" accept="audio/*" onchange="handleFileUpload(this)">
+                    <input type="file" id="fileUpload" class="hidden" accept="*" onchange="handleFileUpload(this)">
+                </div>
+                <span class="text-cli-accent-dark font-mono text-lg pb-2.5">$</span>
+                <textarea id="messageInput" placeholder="Enter your command or upload a file..." rows="1" class="flex-1 w-full p-2 text-base bg-transparent border-none outline-none resize-none text-cli-text placeholder:text-cli-text-secondary font-mono"></textarea>
+                <button id="sendBtn" onclick="sendMessage()" class="w-10 h-10 mb-1 mr-1 transition-all duration-200 rounded-lg bg-cli-accent hover:bg-cli-accent-dark text-cli-bg disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

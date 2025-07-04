@@ -1,0 +1,210 @@
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+import asyncio
+import sys
+import os
+from datetime import datetime
+import re
+import traceback
+
+# Add project root to sys.path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from gui.client import get_gemini_client
+from gui.config import MODEL_NAME, SYSTEM_PROMPT, MAX_TOOL_TURNS
+from gui.tool_utils import mcp_tool_to_genai_tool
+
+from swe_tools.__init__ import mcp as clia_mcp # Import the FastMCP instance
+
+from google.genai import types
+from google.genai import errors as genai_errors
+
+app = FastAPI()
+
+# Global state for Gemini client
+gemini_client = None
+history = [] # Chat history for the AI model
+
+async def initialize_gemini_client():
+    global gemini_client
+    if gemini_client:
+        return # Already initialized
+
+    try:
+        gemini_client = get_gemini_client()
+        print("Gemini client initialized successfully.")
+    except Exception as e:
+        print(f"Error initializing Gemini client: {e}")
+        traceback.print_exc()
+        # Handle error, perhaps send a message to the client
+
+@app.on_event("startup")
+async def startup_event():
+    await initialize_gemini_client()
+    # Mount the MCP server as an ASGI application
+    app.mount("/mcp_tools", clia_mcp.streamable_http_app(), name="mcp_tools")
+
+    # Get tools from the mounted MCP server
+    mcp_tools_response = await clia_mcp.list_tools()
+    if not mcp_tools_response:
+        print("ERROR: No tools found on the MCP server.")
+        return
+
+    gemini_tools = types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response])
+    app.state.generation_config = types.GenerateContentConfig(
+        tools=[gemini_tools],
+        system_instruction=SYSTEM_PROMPT,
+        thinking_config=types.ThinkingConfig(
+            include_thoughts=True
+        )
+    )
+    print("AI components initialized successfully.")
+
+@app.get("/", response_class=HTMLResponse)
+async def home():
+    with open(os.path.join(os.path.dirname(__file__), "index.html"), "r", encoding="utf-8") as f:
+        html_content = f.read()
+    return HTMLResponse(content=html_content)
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    print("WebSocket connected.")
+    
+    # Send initial welcome message
+    await websocket.send_json({
+        "type": "agent_message",
+        "content": "Hello! I'm your CLI Agent. I can help you build applications and work with multimedia content. What would you like to create today?",
+        "tool_info": {
+            "title": "[System Ready]",
+            "details": "All tools loaded. Multimedia support active."
+        }
+    })
+
+    while True:
+        try:
+            message = await websocket.receive_json()
+            print(f"Received message: {message}")
+
+            if message["type"] == "user_message":
+                user_text = message.get("text", "")
+                file_data_list = message.get("files", []) # List of {filename, content_base64, mime_type}
+
+                content_parts = []
+                if user_text:
+                    content_parts.append(types.Part.from_text(text=user_text))
+
+                # Process attached files
+                for file_data in file_data_list:
+                    # In a real scenario, you'd upload these files to Gemini's file API
+                    # For now, we'll simulate or use a placeholder
+                    # This part needs careful implementation as Gemini's file API is async
+                    # and requires file_uri, not direct content.
+                    # For this prototype, we'll just add a text part indicating file presence
+                    await websocket.send_json({
+                        "type": "info_message",
+                        "content": f"Received file: {file_data['filename']} ({file_data['mime_type']}). File processing for Gemini API is a complex topic and will be simplified for this prototype."
+                    })
+                    content_parts.append(types.Part.from_text(text=f"User attached file: {file_data['filename']}"))
+
+
+                if not content_parts:
+                    continue
+
+                history.append(types.Content(role='user', parts=content_parts))
+                
+                await websocket.send_json({"type": "typing_indicator", "status": "start"})
+
+                final_answer = ""
+                turn_count = 0
+                
+                while turn_count < MAX_TOOL_TURNS:
+                    turn_count += 1
+                    
+                    stream = await gemini_client.aio.models.generate_content_stream(
+                        model=MODEL_NAME,
+                        contents=history,
+                        config=app.state.generation_config # Use the stored generation_config
+                    )
+                    
+                    thoughts_content = ""
+                    answer_content = ""
+                    function_call = None
+                    response_content_parts = []
+
+                    async for chunk in stream:
+                        for part in chunk.candidates[0].content.parts:
+                            if hasattr(part, 'function_call') and part.function_call:
+                                function_call = part.function_call
+                            
+                            if part.text:
+                                if hasattr(part, 'thought') and part.thought:
+                                    await websocket.send_json({"type": "thoughts", "content": part.text})
+                                else:
+                                    await websocket.send_json({"type": "agent_message_stream", "content": part.text})
+                        
+                        response_content_parts.extend(chunk.candidates[0].content.parts)
+
+                    if function_call:
+                        history.append(types.Content(role="model", parts=response_content_parts))
+                        tool_name = function_call.name
+                        tool_args = dict(function_call.args)
+
+                        await websocket.send_json({
+                            "type": "tool_call",
+                            "tool_name": tool_name,
+                            "tool_args": str(tool_args)
+                        })
+                        
+                        tool_result = await clia_mcp.call_tool(tool_name, tool_args)
+                        
+                        history.append(types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)}))
+                        await websocket.send_json({
+                            "type": "tool_result",
+                            "tool_name": tool_name,
+                            "result": str(tool_result)
+                        })
+                    else:
+                        # If no function call, the final answer is the accumulated streamed content
+                        # This part needs to be handled by the client accumulating the stream
+                        # For now, we'll just ensure the history is updated correctly.
+                        final_answer = ""
+                        for part in response_content_parts:
+                            if part.text and not hasattr(part, 'thought'):
+                                final_answer += part.text
+                        break
+
+                await websocket.send_json({"type": "typing_indicator", "status": "stop"})
+
+                if turn_count >= MAX_TOOL_TURNS:
+                    final_answer = "Task may be incomplete due to reaching the maximum number of tool turns."
+
+                if final_answer:
+                    # Send final answer if not already streamed as part of agent_message_stream
+                    # This might need refinement to avoid duplicate messages if streaming is used for final answer
+                    pass 
+                
+                history.append(types.Content(role="model", parts=[types.Part.from_text(text=final_answer)]))
+
+            elif message["type"] == "ping":
+                await websocket.send_json({"type": "pong"})
+
+        except WebSocketDisconnect:
+            print("WebSocket disconnected.")
+            break
+        except genai_errors.ClientError as e:
+            await websocket.send_json({"type": "error", "content": f"An API error occurred: {e}"})
+            print(f"API Error: {e}")
+            break
+        except Exception as e:
+            await websocket.send_json({"type": "error", "content": f"An unexpected error occurred: {e}"})
+            print(f"Unexpected Error: {e}")
+            break
+
+# Serve static files (like script.js)
+app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
+
+# To run this: uvicorn web_ui.app:app --reload --ws websockets
+# Or integrate into setup.py and gui/main.py for 'clia -web'
+

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLI Agent Chat</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* Custom font and scrollbar styles */
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .font-mono {
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* Custom scrollbar for a cleaner look */
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #4a5568; /* gray-600 */
+            border-radius: 3px;
+        }
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #718096; /* gray-500 */
+        }
+        
+        /* Animation for new messages */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .fade-in-up {
+            animation: fadeInUp 0.4s ease-out forwards;
+        }
+
+        /* Blinking cursor animation for typing indicator */
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+        .cursor-blink {
+            animation: blink 1s step-end infinite;
+        }
+    </style>
+    <script>
+        // Customizations for Tailwind CSS
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace'],
+                    },
+                    colors: {
+                      'cli-bg': '#0D1117',
+                      'cli-surface': '#161B22',
+                      'cli-border': '#30363D',
+                      'cli-text': '#C9D1D9',
+                      'cli-text-secondary': '#8B949E',
+                      'cli-accent': '#22D3EE', // cyan-400
+                      'cli-accent-dark': '#06B6D4', // cyan-500
+                      'cli-green': '#34D399', // emerald-400
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-cli-bg text-cli-text antialiased">
+
+    <div class="flex flex-col h-screen max-w-4xl mx-auto border-x border-cli-border">
+        <!-- Chat Header -->
+        <div class="px-6 py-4 border-b border-cli-border bg-cli-surface/80 backdrop-blur-sm">
+            <div class="flex items-center gap-4">
+                <div class="relative flex items-center justify-center w-8 h-8">
+                    <span class="absolute inline-flex h-full w-full rounded-full bg-cli-green/50 animate-ping"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-cli-green"></span>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-white">CLI Agent</h1>
+                    <p class="text-sm text-cli-text-secondary">Status: <span class="text-cli-green">Online</span> // Ready for commands</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Messages -->
+        <div id="messages" class="flex-1 p-6 overflow-y-auto chat-messages">
+            <div class="flex items-start gap-4 message agent fade-in-up">
+                <div class="w-8 h-8 text-lg flex-shrink-0 bg-cli-surface border border-cli-border rounded-full flex items-center justify-center text-cli-accent">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div class="flex flex-col flex-1 gap-2">
+                    <div class="flex items-start gap-3 font-mono">
+                        <span class="mt-0.5 text-cli-text-secondary">></span>
+                        <p class="flex-1 text-cli-text">Hello! I'm your CLI Agent. I can help you build applications and work with multimedia content. What would you like to create today?</p>
+                    </div>
+                    <div class="p-3 mt-1 text-sm border-l-4 rounded bg-cli-green/10 border-cli-green font-mono">
+                        <p class="font-semibold text-cli-green">[System Ready]</p>
+                        <p class="text-cli-text-secondary">All tools loaded. Multimedia support active.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Input Area -->
+        <div class="p-4 border-t border-cli-border bg-cli-bg/90 backdrop-blur-sm">
+            <div id="attachedFiles" class="flex flex-wrap gap-2 mb-3"></div>
+            <div class="flex items-end gap-3 p-1 transition-all duration-300 border rounded-lg bg-cli-surface border-cli-border focus-within:border-cli-accent focus-within:ring-2 focus-within:ring-cli-accent/50">
+                <div class="flex items-center pl-2">
+                     <button onclick="document.getElementById('fileUpload').click()" title="Attach File" class="w-8 h-8 transition-colors rounded-md text-cli-text-secondary hover:bg-cli-border hover:text-white">
+                        <i class="fa-solid fa-paperclip"></i>
+                    </button>
+                    <!-- Hidden file inputs -->
+                    <input type="file" id="imageUpload" class="hidden" accept="image/*" onchange="handleFileUpload(this)">
+                    <input type="file" id="videoUpload" class="hidden" accept="video/*" onchange="handleFileUpload(this)">
+                    <input type="file" id="audioUpload" class="hidden" accept="audio/*" onchange="handleFileUpload(this)">
+                    <input type="file" id="fileUpload" class="hidden" accept="*" onchange="handleFileUpload(this)">
+                </div>
+                <span class="text-cli-accent-dark font-mono text-lg pb-2.5">$</span>
+                <textarea id="messageInput" placeholder="Enter your command or upload a file..." rows="1" class="flex-1 w-full p-2 text-base bg-transparent border-none outline-none resize-none text-cli-text placeholder:text-cli-text-secondary font-mono"></textarea>
+                <button id="sendBtn" onclick="sendMessage()" class="w-10 h-10 mb-1 mr-1 transition-all duration-200 rounded-lg bg-cli-accent hover:bg-cli-accent-dark text-cli-bg disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let attachedFiles = [];
+
+        const messagesContainer = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const attachedFilesContainer = document.getElementById('attachedFiles');
+
+        function getFileIcon(fileType) {
+            if (fileType.startsWith('image/')) return 'fa-solid fa-file-image';
+            if (fileType.startsWith('video/')) return 'fa-solid fa-file-video';
+            if (fileType.startsWith('audio/')) return 'fa-solid fa-file-audio';
+            if (fileType.startsWith('application/pdf')) return 'fa-solid fa-file-pdf';
+            if (fileType.startsWith('text/')) return 'fa-solid fa-file-lines';
+            return 'fa-solid fa-file';
+        }
+
+        function handleFileUpload(input) {
+            if (input.files.length > 0) {
+                Array.from(input.files).forEach(file => {
+                    if (!attachedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                         attachedFiles.push(file);
+                    }
+                });
+                updateAttachedFiles();
+            }
+             // Reset the input value to allow re-selecting the same file
+            input.value = '';
+        }
+
+        function updateAttachedFiles() {
+            attachedFilesContainer.innerHTML = '';
+            attachedFiles.forEach((file, index) => {
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'flex items-center gap-2 px-3 py-1.5 text-sm rounded-full bg-cli-surface border border-cli-border text-cli-text-secondary';
+                fileDiv.innerHTML = `
+                    <i class="${getFileIcon(file.type)}"></i>
+                    <span class="font-mono">${file.name}</span>
+                    <button class="text-red-400 hover:text-red-300" onclick="removeFile(${index})"><i class="fa-solid fa-times-circle"></i></button>
+                `;
+                attachedFilesContainer.appendChild(fileDiv);
+            });
+            updateSendButtonState();
+        }
+
+        function removeFile(index) {
+            attachedFiles.splice(index, 1);
+            updateAttachedFiles();
+        }
+
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message || attachedFiles.length > 0) {
+                addUserMessage(message, attachedFiles);
+                messageInput.value = '';
+                messageInput.style.height = 'auto'; // Reset height
+                attachedFiles = [];
+                updateAttachedFiles();
+                
+                setTimeout(() => {
+                    showTypingIndicator();
+                    setTimeout(() => {
+                        hideTypingIndicator();
+                        addAgentResponse();
+                    }, Math.random() * 1500 + 1000); // Simulate variable response time
+                }, 300);
+            }
+        }
+
+        function addUserMessage(text, files) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'flex justify-end message user fade-in-up';
+            
+            let contentHTML = '';
+            if (text) {
+                contentHTML += `<div class="p-4 rounded-lg rounded-tr-none bg-cli-accent-dark text-white">${text.replace(/\n/g, '<br>')}</div>`;
+            }
+
+            if (files.length > 0) {
+                const filesHTML = files.map(file => {
+                    const url = URL.createObjectURL(file);
+                    if (file.type.startsWith('image/')) {
+                        return `<div class="mt-2 overflow-hidden border rounded-md border-cli-border"><img src="${url}" alt="Uploaded image" class="block w-full h-auto max-w-xs"></div>`;
+                    }
+                    if (file.type.startsWith('video/')) {
+                        return `<div class="mt-2 overflow-hidden border rounded-md border-cli-border"><video controls src="${url}" class="block w-full h-auto max-w-xs"></video></div>`;
+                    }
+                    if (file.type.startsWith('audio/')) {
+                        return `<div class="mt-2"><audio controls src="${url}" class="w-full max-w-xs"></audio></div>`;
+                    }
+                    return `<div class="mt-2 p-3 text-sm rounded-md bg-cli-surface flex items-center gap-3"><i class="${getFileIcon(file.type)} text-cli-text-secondary"></i><span class="font-mono">${file.name}</span></div>`;
+                }).join('');
+                contentHTML += `<div class="flex flex-col gap-2 mt-2">${filesHTML}</div>`;
+            }
+
+            messageDiv.innerHTML = `<div class="max-w-md">${contentHTML}</div>`;
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function addAgentResponse() {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'flex items-start gap-4 message agent fade-in-up';
+
+            const responses = [
+                "I'll analyze your request and create the application. Let me use my development tools to build this for you.",
+                "Great! I can see the multimedia content. I'll process this and integrate it into the application structure.",
+                "Perfect! I'm initializing the project structure and configuring the necessary components. This will take a moment.",
+                "Excellent choice! I'll create a modern, responsive application with the features you've requested.",
+                "Command received. Executing code generation sequence... Stand by for output."
+            ];
+            const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+
+            messageDiv.innerHTML = `
+                <div class="w-8 h-8 text-lg flex-shrink-0 bg-cli-surface border border-cli-border rounded-full flex items-center justify-center text-cli-accent">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div class="flex flex-col flex-1 gap-2">
+                    <div class="flex items-start gap-3 font-mono">
+                         <span class="mt-0.5 text-cli-text-secondary">></span>
+                         <p class="flex-1 text-cli-text">${randomResponse}</p>
+                    </div>
+                    <div class="p-3 mt-1 text-sm border-l-4 rounded bg-cyan-900/50 border-cli-accent font-mono">
+                        <p class="font-semibold text-cli-accent">[Tool Usage: dev_tools]</p>
+                        <p class="text-cli-text-secondary">> code_generation()<br>> file_processing()<br>> multimedia_integration()</p>
+                    </div>
+                </div>
+            `;
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function showTypingIndicator() {
+            const typingDiv = document.createElement('div');
+            typingDiv.id = 'typingIndicator';
+            typingDiv.className = 'flex items-start gap-4 fade-in-up';
+            typingDiv.innerHTML = `
+                <div class="w-8 h-8 text-lg flex-shrink-0 bg-cli-surface border border-cli-border rounded-full flex items-center justify-center text-cli-accent">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div class="flex items-start flex-1 gap-3 font-mono">
+                    <span class="mt-0.5 text-cli-text-secondary">></span>
+                    <span class="text-cli-text-secondary">Agent is typing<span class="inline-block w-1 ml-1 font-bold cursor-blink">_</span></span>
+                </div>
+            `;
+            messagesContainer.appendChild(typingDiv);
+            scrollToBottom();
+        }
+
+        function hideTypingIndicator() {
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+        }
+        
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function updateSendButtonState() {
+             sendBtn.disabled = messageInput.value.trim().length === 0 && attachedFiles.length === 0;
+        }
+
+        // --- Event Listeners ---
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        messageInput.addEventListener('input', () => {
+            // Auto-resize textarea
+            const maxHeight = 160; // 10rem
+            messageInput.style.height = 'auto';
+            messageInput.style.height = `${Math.min(messageInput.scrollHeight, maxHeight)}px`;
+            updateSendButtonState();
+        });
+
+        // Initial state update
+        updateSendButtonState();
+    </script>
+</body>
+</html>
