@@ -5,7 +5,7 @@ from typing import List, Dict, Tuple
 
 DEFAULT_IGNORE_PATTERNS = [
     ".git", ".gitignore", ".svn", "node_modules", "venv", ".venv",
-    "__pycache__", "build", "dist", "*.log", "*.tmp", ".DS_Store"
+    "__pycache__", "build", "dist", "*.log", ".tmp", ".DS_Store"
 ]
 
 def is_ignored(relative_path: str, ignore_patterns: List[str]) -> bool:
@@ -16,11 +16,15 @@ def is_ignored(relative_path: str, ignore_patterns: List[str]) -> bool:
     return False
 
 def parse_multiline_commands(text: str) -> Dict[str, List[Tuple[int, str]]]:
+    # Replace escaped newlines with actual newlines
+    processed_text = text.replace('\\n', '\n')
+
     commands = defaultdict(list)
     current_file = None
-    for line in text.strip().split('\n'):
-        if line.strip().startswith('$$'):
-            current_file = line.strip()[2:].strip()
+    
+    for line in processed_text.strip().split('\n'):
+        if line.strip().startswith('$'):
+            current_file = line.strip()[1:].strip()
         elif current_file and ':' in line:
             try:
                 line_num_str, content = line.split(':', 1)
@@ -29,3 +33,4 @@ def parse_multiline_commands(text: str) -> Dict[str, List[Tuple[int, str]]]:
             except ValueError:
                 continue
     return commands
+

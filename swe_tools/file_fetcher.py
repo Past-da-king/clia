@@ -11,14 +11,17 @@ from swe_tools.__init__ import mcp
 The tool attempts to read the file using UTF-8 encoding, with a fallback to ignore characters that cannot be decoded, ensuring that most text files can be processed. It will return an error message if the specified path does not exist or if it points to a directory instead of a file.""")
 def read_file_content(path: str) -> str:
     """
-    Retrieves and returns the entire content of a single specified file. This is useful for examining the exact contents of a file for analysis or modification.
+    Retrieves and returns the entire content of a single specified file, with line numbers.
+    This is useful for examining the exact contents of a file for analysis or modification.
 
     Args:
         path: The path to the file to fetch.
     """
     try:
-        if not os.path.isfile(path): return f"Error: Path is not a file or does not exist: {path}"
+        if not os.path.isfile(path):
+            return f"Error: Path is not a file or does not exist: {path}"
         with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-            return f.read()
+            lines = f.readlines()
+        return "".join(f"{i+1}:{line}" for i, line in enumerate(lines))
     except Exception as e:
         return f"Error reading file {path}: {e}"

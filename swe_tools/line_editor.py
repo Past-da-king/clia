@@ -48,7 +48,11 @@ def edit_file_lines(changes: str) -> str:
                 line_num = i + 1
                 if line_num in replacement_map:
                     if line_num not in processed_lines:
-                        new_content.extend(replacement_map[line_num])
+                        # If content is empty, it's a deletion
+                        if replacement_map[line_num][0].strip() == '':
+                            pass # Skip adding the line
+                        else:
+                            new_content.extend(replacement_map[line_num])
                         processed_lines.add(line_num)
                 elif i < len(original_lines):
                     new_content.append(original_lines[i])
@@ -58,4 +62,5 @@ def edit_file_lines(changes: str) -> str:
         except Exception as e:
             report.append(f"Error modifying {file_path}: {e}")
     return "\n".join(report) if report else "No changes specified."
+
 

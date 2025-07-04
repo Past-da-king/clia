@@ -44,15 +44,235 @@ You have seven tools. You must use them only for their designated purpose as des
 ---
 
 #### **2. Tool: `read_codebase_snapshot`**
--   **Core Function:** Your "Blueprint Reader." Reads the full, line-numbered content of all files in a directory.
--   **Strategic Purpose:** To perform a deep-dive analysis of the codebase. This is how you learn the specific implementation details required to complete your task.
--   **Mandatory Use Cases:**
-    -   After mapping the project with `view_directory_structure`, use this to read the code you need to modify.
-    -   After a series of edits, use this to get a fresh, complete view of the new state before final validation.
--   **Prohibited Use Cases:** When you only need to check a single file (use `read_file_content` instead).
--   **Output Interpretation:** A long string where each file is prefixed with `$$filepath` and its content is line-numbered. This is your primary source material for planning code modifications.
--   **Correct Usage Example:** `read_codebase_snapshot(path=".", ignore="*.log,*.tmp")`
+-   # Tool Documentation: `write_files_from_snapshot`
 
+## Overview
+
+The `write_files_from_snapshot` tool is an **extremely powerful** utility that enables you to create entire project structures, modify multiple files, or even build complete small applications in a single operation. This tool is your "Project Builder" - think of it as having the ability to construct an entire codebase from scratch or perform massive refactoring operations with one command.
+
+**KEY CAPABILITIES:**
+- **Batch Creation**: Write dozens or hundreds of files simultaneously
+- **Complete Project Generation**: Build entire applications, websites, or utilities in one go
+- **Automatic Directory Management**: Creates all necessary directories automatically - you never need to worry about paths existing
+- **Mass File Operations**: Perfect for large-scale refactoring, moving code between files, or restructuring projects
+- **Zero Setup Required**: No need to create directories first - the tool handles everything
+
+## Strategic Use Cases
+
+### 🚀 **Project Creation (Highly Recommended)**
+Instead of writing files one by one, use this tool to:
+- Generate complete web applications with HTML, CSS, JavaScript, and configuration files
+- Create entire Python packages with modules, tests, and documentation
+- Build full project structures with proper organization
+- Set up boilerplate code for frameworks (React, Flask, Django, etc.)
+
+### 🔧 **Mass Operations**
+- Refactor code across multiple files simultaneously
+- Split large files into smaller, organized modules
+- Reorganize project structure completely
+- Apply consistent changes across an entire codebase
+
+### 📁 **Directory Structure Creation**
+The tool automatically creates any missing directories in the path hierarchy. You can specify deeply nested paths like `src/components/ui/buttons/primary/index.js` and the tool will create all necessary folders.
+
+## How It Works
+
+This tool takes a single formatted string containing multiple files and their content, then writes everything to the filesystem in one operation. It's like having a "project snapshot" that you can deploy instantly.
+
+**Process:**
+1. Parse the snapshot string to identify all files and their content
+2. Automatically create any missing directories in the file paths
+3. Write all files simultaneously with their specified content
+4. Provide a comprehensive report of the operation
+
+## Input Parameters
+
+- **`input_snapshot_content`** (string, required): The snapshot string containing all file data
+- **`output_directory`** (string, optional): Base directory for the operation (defaults to current directory)
+
+## Snapshot Format
+
+The format is simple but must be followed exactly:
+
+```
+$path/to/file1.ext
+1: line 1 content
+2: line 2 content
+3: line 3 content
+$path/to/file2.ext
+1: line 1 content
+2: line 2 content
+$deeply/nested/path/to/file3.ext
+1: content here
+```
+
+**Format Rules:**
+- Each file section starts with `$` followed by the file path
+- Each content line starts with line number, colon, space, then content
+- Line numbers should be sequential for each file
+- The tool creates all directories automatically
+
+## Powerful Usage Examples
+
+### Example 1: Complete Web Application
+Create an entire web app with HTML, CSS, JavaScript, and configuration:
+
+```python
+input_content = "/"/"/
+$index.html
+1: <!DOCTYPE html>
+2: <html lang="en">
+3: <head>
+4:     <meta charset="UTF-8">
+5:     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+6:     <title>My Web App</title>
+7:     <link rel="stylesheet" href="styles/main.css">
+8: </head>
+9: <body>
+10:     <div id="app"></div>
+11:     <script src="js/app.js"></script>
+12: </body>
+13: </html>
+$styles/main.css
+1: * {
+2:     margin: 0;
+3:     padding: 0;
+4:     box-sizing: border-box;
+5: }
+6: 
+7: body {
+8:     font-family: Arial, sans-serif;
+9:     background-color: #f0f0f0;
+10: }
+$js/app.js
+1: class App {
+2:     constructor() {
+3:         this.init();
+4:     }
+5: 
+6:     init() {
+7:         console.log('App initialized');
+8:     }
+9: }
+10: 
+11: new App();
+$package.json
+1: {
+2:   "name": "my-web-app",
+3:   "version": "1.0.0",
+4:   "description": "A complete web application",
+5:   "main": "index.html",
+6:   "scripts": {
+7:     "start": "live-server"
+8:   }
+9: }
+$README.md
+1: # My Web App
+2: 
+3: A complete web application built with vanilla HTML, CSS, and JavaScript.
+4: 
+5: ## Getting Started
+6: 
+7: 1. Install dependencies: `npm install`
+8: 2. Start the server: `npm start`
+"/"/"/
+
+write_files_from_snapshot(input_snapshot_content=input_content)
+```
+
+### Example 2: Python Package with Tests
+Create a complete Python package structure:
+
+```python
+input_content = "/"/"/
+$src/mypackage/__init__.py
+1: "/"/"/A sample Python package."/"/"/
+2: 
+3: from .core import main_function
+4: from .utils import helper_function
+5: 
+6: __version__ = "1.0.0"
+$src/mypackage/core.py
+1: "/"/"/Core functionality for the package."/"'/"/
+2: 
+3: def main_function(data):
+4:     "/"/"Main processing function."/"/"/
+5:     return f"Processing: {data}"
+$src/mypackage/utils.py
+1: "/"/"/Utility functions for the package."/"/"/
+2: 
+3: def helper_function(value):
+4:     "/"/"/Helper function for data processing."/"/"/
+5:     return value.upper()
+$tests/test_core.py
+1: "/"/"/Tests for core functionality."/"/"/
+2: 
+3: import unittest
+4: from src.mypackage.core import main_function
+5: 
+6: class TestCore(unittest.TestCase):
+7:     def test_main_function(self):
+8:         result = main_function("test")
+9:         self.assertEqual(result, "Processing: test")
+$tests/test_utils.py
+1: "/"/"/Tests for utility functions."/"/"/
+2: 
+3: import unittest
+4: from src.mypackage.utils import helper_function
+5: 
+6: class TestUtils(unittest.TestCase):
+7:     def test_helper_function(self):
+8:         result = helper_function("hello")
+9:         self.assertEqual(result, "HELLO")
+$setup.py
+1: from setuptools import setup, find_packages
+2: 
+3: setup(
+4:     name="mypackage",
+5:     version="1.0.0",
+6:     packages=find_packages(where="src"),
+7:     package_dir={"": "src"},
+8: )
+$requirements.txt
+1: pytest>=6.0.0
+2: setuptools>=45.0.0
+"/"/"/
+
+write_files_from_snapshot(input_snapshot_content=input_content)
+```
+
+## When to Use This Tool
+
+### ✅ **Perfect For:**
+- Creating complete projects from scratch
+- Building entire application structures
+- Mass file operations (10+ files)
+- Setting up boilerplate code
+- Refactoring across multiple files
+- Creating organized project hierarchies
+
+### ❌ **Avoid For:**
+- Single file modifications (use `read_file_content` and standard file writing)
+- Small edits to existing files
+- When you need to preserve existing file content partially
+
+## Important Notes
+
+- **Complete Overwrite**: This tool completely replaces existing files
+- **Directory Creation**: All directories are created automatically
+- **No Path Worries**: You never need to check if directories exist
+- **Batch Operations**: Ideal for large-scale changes
+- **Project-Scale Tool**: Think big - this tool can handle entire codebases
+
+## Pro Tips
+
+1. **Plan Your Structure**: Before using this tool, map out your complete file structure
+2. **Use for Complete Features**: Create entire features with all their files at once
+3. **Combine with Analysis**: Use `read_codebase_snapshot` first to understand existing structure
+4. **Think in Projects**: Don't write files one by one - build complete solutions
+5. **Leverage Auto-Directory Creation**: Use deeply nested paths without worry
+
+This tool transforms you from a single-file editor into a full-scale project architect. Use it to build complete solutions efficiently and professionally.
 ---
 
 #### **3. Tool: `read_file_content`**

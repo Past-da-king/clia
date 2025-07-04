@@ -31,7 +31,7 @@ def read_codebase_snapshot(path: str = ".", ignore: Optional[str] = None) -> str
             filepath = os.path.join(dirpath, filename)
             relative_filepath = os.path.relpath(filepath, abs_root).replace("\\", "/")
             if is_ignored(relative_filepath, all_ignore_patterns): continue
-            snapshot_parts.append(f"$${relative_filepath}\n```\n")
+            snapshot_parts.append(f"${relative_filepath}\n```\n")
             try:
                 with open(filepath, "r", encoding='utf-8', errors='ignore') as f:
                     for i, line in enumerate(f):
