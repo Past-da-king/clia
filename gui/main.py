@@ -24,6 +24,8 @@ from gui.file_selector import FileSelector
 from gui.client import get_gemini_client
 from gui.tool_utils import mcp_tool_to_genai_tool
 import uvicorn
+import webbrowser
+import time
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -239,11 +241,17 @@ def run_clia():
     if "--web" in sys.argv:
         # Remove --web argument before passing to uvicorn
         sys.argv.remove("--web")
-        # Run the FastAPI app using uvicorn
-        # The app object is in web_ui/app.py
-        # We need to ensure the current working directory is in sys.path for uvicorn to find web_ui.app
-        sys.path.insert(0, os.getcwd())
-        uvicorn.run("web_ui.app:app", host="0.0.0.0", port=8000, reload=True, ws="websockets", app_dir="C:/Users/past9/OneDrive/Desktop/project/clia")
+
+        # Ensure project root is in sys.path for the uvicorn subprocess
+        project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+
+        print_message("Web UI is running at http://127.0.0.1:8000", role="info")
+        time.sleep(2) # Give the server a moment to start
+        webbrowser.open("http://127.0.0.1:8000")
+        uvicorn.run("web_ui.app:app", host="0.0.0.0", port=8000, reload=True, ws="websockets", app_dir=".")
+        print_message("Web UI is running at http://127.0.0.1:8000", role="info")
     else:
         try:
             asyncio.run(main())

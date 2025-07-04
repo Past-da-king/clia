@@ -77,14 +77,7 @@ async def websocket_endpoint(websocket: WebSocket):
     current_history = [] 
 
     # Send initial welcome message
-    await websocket.send_json({
-        "type": "agent_message",
-        "content": "Hello! I'm your CLI Agent. I can help you build applications and work with multimedia content. What would you like to create today?",
-        "tool_info": {
-            "title": "[System Ready]",
-            "details": "All tools loaded. Multimedia support active."
-        }
-    })
+    
 
     while True:
         try:
@@ -196,5 +189,6 @@ async def websocket_endpoint(websocket: WebSocket):
 # Serve static files (like script.js)
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "static")), name="static")
 
-# To run this: uvicorn web_ui.app:app --reload --ws websockets
-# Or integrate into setup.py and gui/main.py for 'clia -web'
+if __name__ == '__main__':
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True, ws="websockets")
