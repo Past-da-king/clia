@@ -255,7 +255,7 @@ function addToolCall(toolName, toolArgs) {
         <div class="flex flex-col flex-1 gap-2">
             <div class="p-3 mt-1 text-sm border-l-4 rounded bg-purple-900/50 border-purple-500 font-mono">
                 <p class="font-semibold text-purple-400">[Tool Call]</p>
-                <p class="text-cli-text-secondary">Calling tool <code>${toolName}</code> with arguments: <code>${toolArgs}</code></p>
+                <p class="text-cli-text-secondary break-words">Calling tool <code>${toolName}</code> with arguments: <code>${toolArgs}</code></p>
             </div>
         </div>
     `;
@@ -274,7 +274,7 @@ function addToolResult(toolName, result) {
         <div class="flex flex-col flex-1 gap-2">
             <div class="p-3 mt-1 text-sm border-l-4 rounded bg-green-900/50 border-green-500 font-mono">
                 <p class="font-semibold text-green-400">[Tool Result]</p>
-                <p class="text-cli-text-secondary"><pre class="whitespace-pre-wrap">${result}</pre></p>
+                <p class="text-cli-text-secondary break-words"><pre class="whitespace-pre-wrap">${result}</pre></p>
             </div>
         </div>
     `;

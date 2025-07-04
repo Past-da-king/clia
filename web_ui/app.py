@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 import re
 import traceback
+import uuid
 
 # Add project root to sys.path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -24,7 +25,7 @@ app = FastAPI()
 
 # Global state for Gemini client
 gemini_client = None
-history = [] # Chat history for the AI model
+session_histories = {} # Stores chat history for each WebSocket connection
 
 async def initialize_gemini_client():
     global gemini_client
@@ -72,6 +73,9 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     print("WebSocket connected.")
     
+    # Initialize chat history for this session
+    current_history = [] 
+
     # Send initial welcome message
     await websocket.send_json({
         "type": "agent_message",
@@ -112,11 +116,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 if not content_parts:
                     continue
 
-                history.append(types.Content(role='user', parts=content_parts))
+                current_history.append(types.Content(role='user', parts=content_parts))
                 
                 await websocket.send_json({"type": "typing_indicator", "status": "start"})
 
-                final_answer = ""
+                final_answer_parts = []
                 turn_count = 0
                 
                 while turn_count < MAX_TOOL_TURNS:
@@ -124,12 +128,10 @@ async def websocket_endpoint(websocket: WebSocket):
                     
                     stream = await gemini_client.aio.models.generate_content_stream(
                         model=MODEL_NAME,
-                        contents=history,
+                        contents=current_history,
                         config=app.state.generation_config # Use the stored generation_config
                     )
                     
-                    thoughts_content = ""
-                    answer_content = ""
                     function_call = None
                     response_content_parts = []
 
@@ -143,11 +145,12 @@ async def websocket_endpoint(websocket: WebSocket):
                                     await websocket.send_json({"type": "thoughts", "content": part.text})
                                 else:
                                     await websocket.send_json({"type": "agent_message_stream", "content": part.text})
+                                    final_answer_parts.append(part) # Accumulate parts for final answer
                         
                         response_content_parts.extend(chunk.candidates[0].content.parts)
 
                     if function_call:
-                        history.append(types.Content(role="model", parts=response_content_parts))
+                        current_history.append(types.Content(role="model", parts=response_content_parts))
                         tool_name = function_call.name
                         tool_args = dict(function_call.args)
 
@@ -159,33 +162,21 @@ async def websocket_endpoint(websocket: WebSocket):
                         
                         tool_result = await clia_mcp.call_tool(tool_name, tool_args)
                         
-                        history.append(types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)}))
+                        current_history.append(types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)}))
                         await websocket.send_json({
                             "type": "tool_result",
                             "tool_name": tool_name,
                             "result": str(tool_result)
                         })
                     else:
-                        # If no function call, the final answer is the accumulated streamed content
-                        # This part needs to be handled by the client accumulating the stream
-                        # For now, we'll just ensure the history is updated correctly.
-                        final_answer = ""
-                        for part in response_content_parts:
-                            if part.text and not hasattr(part, 'thought'):
-                                final_answer += part.text
-                        break
+                        break # No function call, so AI has finished its response
 
                 await websocket.send_json({"type": "typing_indicator", "status": "stop"})
 
                 if turn_count >= MAX_TOOL_TURNS:
-                    final_answer = "Task may be incomplete due to reaching the maximum number of tool turns."
+                    final_answer_parts.append(types.Part.from_text(text="Task may be incomplete due to reaching the maximum number of tool turns."))
 
-                if final_answer:
-                    # Send final answer if not already streamed as part of agent_message_stream
-                    # This might need refinement to avoid duplicate messages if streaming is used for final answer
-                    pass 
-                
-                history.append(types.Content(role="model", parts=[types.Part.from_text(text=final_answer)]))
+                current_history.append(types.Content(role="model", parts=final_answer_parts))
 
             elif message["type"] == "ping":
                 await websocket.send_json({"type": "pong"})
@@ -207,4 +198,3 @@ app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__
 
 # To run this: uvicorn web_ui.app:app --reload --ws websockets
 # Or integrate into setup.py and gui/main.py for 'clia -web'
-
