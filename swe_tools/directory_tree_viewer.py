@@ -1,6 +1,6 @@
 import os
 from typing import Optional
-from swe_tools.__init__ import mcp
+from swe_tools.instance import mcp
 from swe_tools.utils import is_ignored, DEFAULT_IGNORE_PATTERNS
 
 @mcp.tool(name="view_directory_structure", description="""This tool lists all files within a specified directory and its subdirectories, returning a simple, newline-separated list of their relative paths. It is a fundamental utility for getting a flat list of all files in a project or a specific part of it. This is useful for tasks like:

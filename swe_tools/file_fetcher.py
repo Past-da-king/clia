@@ -1,5 +1,5 @@
 import os
-from swe_tools.__init__ import mcp
+from swe_tools.instance import mcp
 
 @mcp.tool(name="read_file_content", description="""This tool is designed to retrieve and return the entire textual content of a single specified file from the local filesystem. It is a fundamental utility for gaining a complete understanding of a file's contents, which is crucial for various software engineering tasks such as:
 *   **Code Review:** Examining source code files to understand logic, identify bugs, or propose improvements.

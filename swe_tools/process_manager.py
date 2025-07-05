@@ -3,48 +3,35 @@ import os
 import psutil
 from typing import Dict, Optional
 
-from swe_tools.__init__ import mcp
+from swe_tools.instance import mcp
 
 @mcp.tool(
     name="read_process_logs",
-    description="""Reads the stdout and stderr log files for a background process, given its unique run_id.
+    description="""Reads the combined stdout and stderr log file for a background process, given its unique run_id.
 
 This tool is essential for monitoring the status and output of any command started with `run_in_background=True`.
 It allows the AI to check for successful startup, diagnose errors, or track the progress of a long-running job without interrupting it."""
 )
 def read_process_logs(run_id: str) -> Dict[str, str]:
     """
-    Reads the stdout and stderr log files for a background process.
+    Reads the combined log file for a background process.
 
     Args:
         run_id: The unique ID of the run, returned by `run_shell_command`.
 
     Returns:
-        A dictionary containing the stdout and stderr logs.
+        A dictionary containing the logs.
     """
     logs_dir = ".logs"
-    stdout_log_path = os.path.join(logs_dir, f"{run_id}.stdout.log")
-    stderr_log_path = os.path.join(logs_dir, f"{run_id}.stderr.log")
-
-    logs = {"stdout": "", "stderr": ""}
+    log_path = os.path.join(logs_dir, f"{run_id}.log")
 
     try:
-        with open(stdout_log_path, 'r') as f:
-            logs["stdout"] = f.read()
+        with open(log_path, 'r') as f:
+            return {"log_content": f.read()}
     except FileNotFoundError:
-        logs["stdout"] = f"Log file not found: {stdout_log_path}"
+        return {"error": f"Log file not found: {log_path}"}
     except Exception as e:
-        logs["stdout"] = f"Error reading stdout log: {e}"
-
-    try:
-        with open(stderr_log_path, 'r') as f:
-            logs["stderr"] = f.read()
-    except FileNotFoundError:
-        logs["stderr"] = f"Log file not found: {stderr_log_path}"
-    except Exception as e:
-        logs["stderr"] = f"Error reading stderr log: {e}"
-
-    return logs
+        return {"error": f"Error reading log file: {e}"}
 
 @mcp.tool(
     name="stop_process",

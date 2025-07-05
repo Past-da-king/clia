@@ -6,7 +6,7 @@ import sys
 import uuid
 from typing import Optional, Dict, Any, Union
 
-from swe_tools.__init__ import mcp
+from swe_tools.instance import mcp
 
 @mcp.tool(
     name="run_shell_command",
@@ -48,16 +48,13 @@ def run_shell_command(
             os.makedirs(logs_dir, exist_ok=True)
 
             run_id = str(uuid.uuid4())
-            stdout_log_path = os.path.join(logs_dir, f"{run_id}.stdout.log")
-            stderr_log_path = os.path.join(logs_dir, f"{run_id}.stderr.log")
+            log_path = os.path.join(logs_dir, f"{run_id}.log")
 
-            stdout_log_file = open(stdout_log_path, 'w')
-            stderr_log_file = open(stderr_log_path, 'w')
+            # Use shell redirection for robust logging
+            redirected_command = f"{command} > {log_path} 2>&1"
 
             popen_kwargs = {
                 "shell": True,
-                "stdout": stdout_log_file,
-                "stderr": stderr_log_file,
                 "stdin": subprocess.DEVNULL,
                 "cwd": working_directory,
                 "env": env,
@@ -67,7 +64,7 @@ def run_shell_command(
             else:
                 popen_kwargs['start_new_session'] = True
 
-            process = subprocess.Popen(command, **popen_kwargs)
+            process = subprocess.Popen(redirected_command, **popen_kwargs)
 
             # Store the process mapping
             mapping_file = os.path.join(logs_dir, ".process_mapping")
@@ -78,8 +75,7 @@ def run_shell_command(
                 "status": "Running in background",
                 "pid": process.pid,
                 "run_id": run_id,
-                "stdout_log_path": stdout_log_path,
-                "stderr_log_path": stderr_log_path,
+                "log_path": log_path,
                 "command": command
             }
         except Exception as e:

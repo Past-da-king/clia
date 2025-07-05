@@ -1,6 +1,6 @@
 import os
 from collections import defaultdict
-from swe_tools.__init__ import mcp
+from swe_tools.instance import mcp
 from swe_tools.utils import parse_multiline_commands
 
 @mcp.tool(name="edit_file_lines", description="""This tool provides a precise mechanism for modifying existing text files by applying line-by-line changes. It allows for granular control over file content, enabling insertion of new lines, updating existing lines, or deleting specific lines. This tool is particularly useful for:

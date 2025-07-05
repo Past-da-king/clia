@@ -4,3 +4,4 @@ rich
 python-dotenv
 fastapi
 uvicorn
+psutil

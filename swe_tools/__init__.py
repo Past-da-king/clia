@@ -1,9 +1,4 @@
-from mcp.server.fastmcp import FastMCP
-
-mcp = FastMCP(
-    "CliSweAiTools",
-    description="A toolset for an AI to perform software engineering tasks on the command line.",
-)
+from swe_tools.instance import mcp
 
 # Import all tool modules to register them with the FastMCP instance
 from swe_tools import cli_commander

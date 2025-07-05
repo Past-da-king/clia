@@ -1,6 +1,6 @@
 import os
 from typing import Optional
-from swe_tools.__init__ import mcp
+from swe_tools.instance import mcp
 from swe_tools.utils import is_ignored, DEFAULT_IGNORE_PATTERNS
 
 @mcp.tool(name="read_codebase_snapshot", description="""This tool creates a comprehensive, detailed string representation (a 'snapshot') of a specified directory's contents, including all files and their line-numbered content. It is invaluable for capturing the exact state of a codebase, a specific module, or a set of files for various purposes such as:
