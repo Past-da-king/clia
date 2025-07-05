@@ -39,4 +39,4 @@ def read_codebase_snapshot(path: str = ".", ignore: Optional[str] = None) -> str
             except Exception as e:
                 snapshot_parts.append(f"Error reading file: {e}\n")
             snapshot_parts.append("```\n\n")
-    return "".join(snapshot_parts) if snapshot_parts else "Snapshot complete. No files found."
+    return "".join(snapshot_parts) if snapshot_parts else "Snapshot could not be generated because the directory is empty or contains no matching files."

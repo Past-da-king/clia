@@ -18,8 +18,10 @@ def read_file_content(path: str) -> str:
         path: The path to the file to fetch.
     """
     try:
+        if not os.path.exists(path):
+            return f"The specified path does not exist: {path}"
         if not os.path.isfile(path):
-            return f"Error: Path is not a file or does not exist: {path}"
+            return f"The specified path is a directory, not a file: {path}"
         with open(path, 'r', encoding='utf-8', errors='ignore') as f:
             lines = f.readlines()
         return "".join(f"{i+1}:{line}" for i, line in enumerate(lines))
