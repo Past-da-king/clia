@@ -15,22 +15,13 @@ def is_ignored(relative_path: str, ignore_patterns: List[str]) -> bool:
             return True
     return False
 
-def parse_multiline_commands(text: str) -> Dict[str, List[Tuple[int, str]]]:
-    # Replace escaped newlines with actual newlines
-    processed_text = text.replace('\\n', '\n')
+def parse_multiline_commands(text: str) -> Dict[str, List[Tuple[int, str]]]:    # Replace escaped newlines with actual newlines    processed_text = text.replace('\n', '
+')    commands = defaultdict(list)    current_file = None        for line in processed_text.strip().split('
+'):        stripped_line = line.strip()        if stripped_line.startswith('
 
-    commands = defaultdict(list)
-    current_file = None
-    
-    for line in processed_text.strip().split('\n'):
-        if line.strip().startswith('$'):
-            current_file = line.strip()[1:].strip()
-        elif current_file and ':' in line:
-            try:
-                line_num_str, content = line.split(':', 1)
-                line_num = int(line_num_str)
-                commands[current_file].append((line_num, content))
-            except ValueError:
-                continue
-    return commands
+):            # Handle one or more '
+
+ characters            path_part = stripped_line.lstrip('
+
+).strip()            current_file = path_part        elif current_file and ':' in line:            try:                line_num_str, content = line.split(':', 1)                line_num = int(line_num_str)                commands[current_file].append((line_num, content))            except ValueError:                continue    return commands
 

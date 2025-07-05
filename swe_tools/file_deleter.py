@@ -9,10 +9,13 @@ def delete_files_and_folders(paths: str) -> str:
     Args:
         paths: A comma-separated string of file paths to delete.
     """
-    if not paths: return "Error: No paths provided."
+    if not paths:
+        return "Error: No paths provided."
     paths_to_delete = [p.strip() for p in paths.split(',')]
     report = []
     for path in paths_to_delete:
+        if not os.path.isabs(path):
+            path = os.path.abspath(path)
         try:
             if os.path.isfile(path):
                 os.remove(path)

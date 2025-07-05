@@ -20,6 +20,9 @@ def view_directory_tree(path: str = ".", max_depth: int = 999, ignore: Optional[
         max_depth: The maximum depth to traverse. Defaults to 999 (effectively unlimited).
         ignore: Optional comma-separated string of glob patterns to ignore.
     """
+    if not os.path.isabs(path):
+        path = os.path.abspath(path)
+
     user_ignore_patterns = [p.strip() for p in ignore.split(',')] if ignore is not None else []
     all_ignore_patterns = list(set(DEFAULT_IGNORE_PATTERNS + user_ignore_patterns))
     if not os.path.isdir(path):

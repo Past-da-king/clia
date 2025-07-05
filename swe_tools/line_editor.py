@@ -32,9 +32,13 @@ def edit_file_lines(changes: str) -> str:
     commands = parse_multiline_commands(changes)
     report = []
     for file_path, edits in commands.items():
+        if not os.path.isabs(file_path):
+            file_path = os.path.abspath(file_path)
+
         if not os.path.isfile(file_path):
             report.append(f"Error for {file_path}: File not found.")
             continue
+
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 original_lines = f.readlines()

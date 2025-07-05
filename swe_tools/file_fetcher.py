@@ -17,6 +17,9 @@ def read_file_content(path: str) -> str:
     Args:
         path: The path to the file to fetch.
     """
+    if not os.path.isabs(path):
+        path = os.path.abspath(path)
+
     try:
         if not os.path.exists(path):
             return f"The specified path does not exist: {path}"
