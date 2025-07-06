@@ -16,9 +16,10 @@ from rich.panel import Panel
 from rich.markdown import Markdown 
 from google.genai import types
 from google.genai import errors as genai_errors
+from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
-from gui.config import MODEL_NAME, SYSTEM_PROMPT, MCP_SERVER_SCRIPT, MAX_TOOL_TURNS, THEME, BOT_NAME
+from gui.config import MODEL_NAME, MCP_SERVER_SCRIPT,SYSTEM_PROMPT ,MAX_TOOL_TURNS, THEME, BOT_NAME
 from gui.ui import print_message, show_welcome_screen, console 
 from gui.file_selector import FileSelector 
 from gui.client import get_gemini_client
@@ -52,9 +53,11 @@ async def main():
                     return
 
                 gemini_tools = types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools])
-                
+                toolz = [mcp_session]
+                # toolz.append(Tool(url_context=types.UrlContext))
+                # toolz.append(Tool(google_search=types.GoogleSearch))
                 generation_config = types.GenerateContentConfig(
-                    tools=[gemini_tools],
+                    tools=toolz,
                     system_instruction=SYSTEM_PROMPT,
                     thinking_config=types.ThinkingConfig(
                         include_thoughts=True
