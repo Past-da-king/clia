@@ -5,7 +5,7 @@ from typing import List, Dict, Tuple
 
 DEFAULT_IGNORE_PATTERNS = [
     ".git", ".gitignore", ".svn", "node_modules", "venv", ".venv",
-    "__pycache__", "build", "dist", "*.log", ".tmp", ".DS_Store","*.png","*.jpg","*.jpeg","*.gif","*.svg","*.ico",
+    "__pycache__", "build", "dist", "*.log", ".tmp", ".DS_Store", 
     "*.pyc", "*.pyo", "*.pyd", "*.db", "*.sqlite",
     "*.egg", "*.egg-info", "*.whl", "*.zip", "*.tar.gz",
     "*.tar.bz2", "*.tar.xz", "*.rar", "*.7z",

@@ -246,7 +246,7 @@ async def main():
                                     
                                     # Combine the function response with the actual image parts
                                     history.append(types.Content(role='tool', parts=[function_response_part] + image_parts))
-                                    history.append(types.Content(role='model', parts=image_parts))
+                                    if image_parts: history.append(types.Content(role='model', parts=image_parts))
 
                                 else:
                                     # --- Default handling for all other tools ---

@@ -1,4 +1,5 @@
 import os
+import mimetypes
 from typing import Optional
 from swe_tools.instance import mcp
 from swe_tools.utils import is_ignored, DEFAULT_IGNORE_PATTERNS
@@ -32,11 +33,15 @@ def read_codebase_snapshot(path: str = ".", ignore: Optional[str] = None) -> str
             relative_filepath = os.path.relpath(filepath, abs_root).replace("\\", "/")
             if is_ignored(relative_filepath, all_ignore_patterns): continue
             snapshot_parts.append(f"${relative_filepath}\n```\n")
-            try:
-                with open(filepath, "r", encoding='utf-8', errors='ignore') as f:
-                    for i, line in enumerate(f):
-                        snapshot_parts.append(f"{i + 1}:{line.rstrip()}\n")
-            except Exception as e:
-                snapshot_parts.append(f"Error reading file: {e}\n")
+            mime_type, _ = mimetypes.guess_type(filepath)
+            if mime_type and not mime_type.startswith('text/'):
+                snapshot_parts.append(f"Binary file: {mime_type} (content skipped)\n")
+            else:
+                try:
+                    with open(filepath, "r", encoding='utf-8', errors='ignore') as f:
+                        for i, line in enumerate(f):
+                            snapshot_parts.append(f"{i + 1}:{line.rstrip()}\n")
+                except Exception as e:
+                    snapshot_parts.append(f"Error reading file: {e}\n")
             snapshot_parts.append("```\n\n")
     return "".join(snapshot_parts) if snapshot_parts else "Snapshot could not be generated because the directory is empty or contains no matching files."
