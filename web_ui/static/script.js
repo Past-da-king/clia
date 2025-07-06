@@ -1,9 +1,9 @@
 
 
-const messagesContainer = document.getElementById('messages');
-const messageInput = document.getElementById('messageInput');
-const sendBtn = document.getElementById('sendBtn');
-const attachedFilesContainer = document.getElementById('attachedFiles');
+let messagesContainer;
+let messageInput;
+let sendBtn;
+let attachedFilesContainer;
 
 let attachedFiles = [];
 let ws;
@@ -23,8 +23,15 @@ markedScript.onload = () => {
 document.head.appendChild(markedScript);
 
 function connectWebSocket() {
-    ws = new WebSocket(`ws://${window.location.host}/ws`);
+    try {
+        ws = new WebSocket(`ws://${window.location.host}/ws`);
+        console.log('WebSocket object after creation:', ws);
+    } catch (error) {
+        console.error('Error creating WebSocket:', error);
+        ws = null; // Ensure ws is null if creation fails
+    }
 
+    console.log('ws before onopen assignment:', ws);
     ws.onopen = (event) => {
         console.log("WebSocket opened:", event);
     };
@@ -338,23 +345,47 @@ function updateSendButtonState() {
 }
 
 // --- Event Listeners ---
-messageInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
-});
+// This part needs to be integrated with the actual file input elements
+// For example, if you have an input with id="fileUpload":
+// document.getElementById('fileUpload').addEventListener('change', function(event) {
+//     handleFileUpload(event.target.files);
+// });
+// Make sure to call updateAttachedFiles() after files are added/removed.
+// The current HTML has inline onclicks, which is less ideal but works.
+// The handleFileUpload function needs to be globally accessible or attached to window.
+window.handleFileUpload = handleFileUpload;
+window.removeFile = removeFile;
 
-messageInput.addEventListener('input', () => {
-    // Auto-resize textarea
-    const maxHeight = 160; // 10rem
-    messageInput.style.height = 'auto';
-    messageInput.style.height = `${Math.min(messageInput.scrollHeight, maxHeight)}px`;
-    updateSendButtonState();
-});
-
-// Initial state update and WebSocket connection
 document.addEventListener('DOMContentLoaded', () => {
+    messagesContainer = document.getElementById('messages');
+    messageInput = document.getElementById('messageInput');
+    sendBtn = document.getElementById('sendBtn');
+    attachedFilesContainer = document.getElementById('attachedFiles');
+
+    console.log('messagesContainer:', messagesContainer);
+    console.log('messageInput:', messageInput);
+    console.log('sendBtn:', sendBtn);
+    console.log('attachedFilesContainer:', attachedFilesContainer);
+
+    // Attach event listeners after elements are available
+        // Attach event listeners after elements are available
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    messageInput.addEventListener('input', () => {
+        // Auto-resize textarea
+        const maxHeight = 160; // 10rem
+        messageInput.style.height = 'auto';
+        messageInput.style.height = `${Math.min(messageInput.scrollHeight, maxHeight)}px`;
+        updateSendButtonState();
+    });
+
+    sendBtn.addEventListener('click', sendMessage); // Attach sendMessage to button click
+
     updateSendButtonState();
     connectWebSocket();
 });

@@ -44,11 +44,12 @@ def run_shell_command(
 
     if run_in_background:
         try:
-            logs_dir = ".logs"
+            logs_dir = os.path.join(os.getcwd(), '.logs')
             os.makedirs(logs_dir, exist_ok=True)
 
             run_id = str(uuid.uuid4())
             log_path = os.path.join(logs_dir, f"{run_id}.log")
+            mapping_file = os.path.join(logs_dir, ".process_mapping")
 
             # Use shell redirection for robust logging
             redirected_command = f"{command} > {log_path} 2>&1"

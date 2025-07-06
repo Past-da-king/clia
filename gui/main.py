@@ -221,7 +221,7 @@ async def main():
                         
                         console.print(Rule(style=THEME["separator_style"]))
 
-                    except KeyboardInterrupt:
+                    except (KeyboardInterrupt, EOFError):
                         print_message("\nChat interrupted by user. Exiting.", role="info")
                         break
                     except genai_errors.ClientError as e:
