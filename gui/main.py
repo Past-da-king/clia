@@ -228,7 +228,6 @@ async def main():
                                                         mime_type=uploaded_file.mime_type,
                                                         uri=uploaded_file.uri # Changed 'file_uri' to 'uri'
                                                     ))
-                                                    image_parts.append(file_part)
                                                     report_lines.append(f"✅ Successfully processed image: {result_data['path']}")
                                                 else:
                                                     report_lines.append(f"❌ Failed to upload image: {result_data['path']}")
@@ -247,6 +246,7 @@ async def main():
                                     
                                     # Combine the function response with the actual image parts
                                     history.append(types.Content(role='tool', parts=[function_response_part] + image_parts))
+                                    history.append(types.Content(role='model', parts=image_parts))
 
                                 else:
                                     # --- Default handling for all other tools ---

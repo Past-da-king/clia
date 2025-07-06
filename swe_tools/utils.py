@@ -5,7 +5,19 @@ from typing import List, Dict, Tuple
 
 DEFAULT_IGNORE_PATTERNS = [
     ".git", ".gitignore", ".svn", "node_modules", "venv", ".venv",
-    "__pycache__", "build", "dist", "*.log", ".tmp", ".DS_Store"
+    "__pycache__", "build", "dist", "*.log", ".tmp", ".DS_Store","*.png","*.jpg","*.jpeg","*.gif","*.svg","*.ico",
+    "*.pyc", "*.pyo", "*.pyd", "*.db", "*.sqlite",
+    "*.egg", "*.egg-info", "*.whl", "*.zip", "*.tar.gz",
+    "*.tar.bz2", "*.tar.xz", "*.rar", "*.7z",
+    "*.bak", "*.swp", "*.swo", "*.tmp", "*.temp",
+    "*.out", "*.o", "*.obj", "*.class", "*.jar",
+    "*.exe", "*.dll", "*.so", "*.dylib",
+    "*.pdb", "*.lib", "*.a", "*.dSYM",
+    "*.log", "*.log.*", "*.log.gz", "*.log.bz2",
+    "*.log.xz", "*.log.zip", "*.log.tar.gz",
+    "*.log.tar.bz2", "*.log.tar.xz", "*.log.7z",
+    "*.log.rar", "*.log.7zip", "*.log.7z.xz",
+    "*.log.7z.bz2", "*.log.7z.gz",".next"
 ]
 
 def is_ignored(relative_path: str, ignore_patterns: List[str]) -> bool:

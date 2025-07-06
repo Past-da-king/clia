@@ -9,7 +9,7 @@ class ImageViewerResult(BaseModel):
     mime_type: str = None
     error: str = None
 
-@mcp.tool(name="view_images", description="Reads one or more image files from the specified paths. The GUI will then display these images to the AI. Use this to see screenshots, diagrams, or other visual information. Input is a comma-separated list of paths.")
+@mcp.tool(name="view_images", description="Reads one or more image files from the specified paths and provides them to the AI for multimodal analysis. Use this to allow the AI to see screenshots, diagrams, or other visual information. Input is a comma-separated list of paths.")
 def view_images(paths: str) -> List[ImageViewerResult]:
     """
     Validates that paths point to valid image files and returns structured data
