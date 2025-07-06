@@ -51,11 +51,7 @@ async def main():
                     print_message("❌ ERROR: No tools found on the MCP server.", role="error")
                     return
 
-                gemini_tools = types.Tool(
-                    function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools],
-                    url_context=types.UrlContext(),
-                    google_search=types.GoogleSearch()
-                )
+                gemini_tools = types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools])
                 
                 generation_config = types.GenerateContentConfig(
                     tools=[gemini_tools],
