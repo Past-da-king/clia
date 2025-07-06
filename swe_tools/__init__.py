@@ -9,3 +9,4 @@ from swe_tools import file_deleter
 from swe_tools import file_fetcher
 from swe_tools import line_editor
 from swe_tools import utils
+from swe_tools import image_viewer

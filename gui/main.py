@@ -26,6 +26,7 @@ from gui.tool_utils import mcp_tool_to_genai_tool
 import uvicorn
 import webbrowser
 import time
+import json
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -201,11 +202,64 @@ async def main():
 
                                 tool_message = f"Calling tool `{tool_name}` with arguments: `{tool_args}`"
                                 print_message(tool_message, role="tool_code")
-                                
+
                                 tool_result = await mcp_session.call_tool(tool_name, tool_args)
-                                
-                                history.append(types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)}))
-                                print_message(f"Tool `{tool_name}` returned a result.", role="tool_code")
+
+                                # --- Handle tool results ---
+                                if tool_name == "view_images":
+                                    image_parts = []
+                                    report_lines = []
+                                    
+                                    # tool_result.structured should be a list of dicts
+                                    image_results = tool_result.structured if hasattr(tool_result, 'structured') else []
+
+                                    if not isinstance(image_results, list):
+                                        report_lines.append(f"Error: Unexpected result format from view_images tool: {image_results}")
+                                        image_results = []
+
+                                    for result_data in image_results:
+                                        if result_data.get("error"):
+                                            report_lines.append(f"❌ Error for '{result_data.get('path', 'N/A')}': {result_data['error']}")
+                                        elif result_data.get('path'):
+                                            try:
+                                                uploaded_file = await FileSelector(os.getcwd()).get_file_part(client, result_data['path'])
+                                                if uploaded_file:
+                                                    file_part = types.Part(file_data=types.FileData(
+                                                        mime_type=uploaded_file.mime_type,
+                                                        uri=uploaded_file.uri # Changed 'file_uri' to 'uri'
+                                                    ))
+                                                    image_parts.append(file_part)
+                                                    report_lines.append(f"✅ Successfully processed image: {result_data['path']}")
+                                                else:
+                                                    report_lines.append(f"❌ Failed to upload image: {result_data['path']}")
+                                            except Exception as e:
+                                                report_lines.append(f"❌ Exception while processing '{result_data['path']}': {e}")
+                                    
+                                    # Create a summary report for the model and the user
+                                    final_report = "\n".join(report_lines)
+                                    print_message(f"Image Viewer Result:\n{final_report}", role="tool_code")
+
+                                    # Create the function response part with the summary
+                                    function_response_part = types.Part.from_function_response(
+                                        name=tool_name,
+                                        response={"result": final_report}
+                                    )
+                                    
+                                    # Combine the function response with the actual image parts
+                                    history.append(types.Content(role='tool', parts=[function_response_part] + image_parts))
+
+                                else:
+                                    # --- Default handling for all other tools ---
+                                    # The tool_result object itself can be stringified for a decent default representation.
+                                    tool_output_str = str(tool_result)
+                                    print_message(f"Tool `{tool_name}` returned a result.", role="tool_code")
+                                    
+                                    # Correctly append the tool result to history
+                                    tool_response_part = types.Part.from_function_response(
+                                        name=tool_name,
+                                        response={"result": tool_output_str}
+                                    )
+                                    history.append(types.Content(role='tool', parts=[tool_response_part]))
                             else:
                                 final_answer = answer_md.markup
                                 if thoughts_md.markup:
