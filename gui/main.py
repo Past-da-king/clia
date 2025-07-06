@@ -51,7 +51,11 @@ async def main():
                     print_message("❌ ERROR: No tools found on the MCP server.", role="error")
                     return
 
-                gemini_tools = types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools])
+                gemini_tools = types.Tool(
+                    function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools],
+                    url_context=types.UrlContext(),
+                    google_search=types.GoogleSearch()
+                )
                 
                 generation_config = types.GenerateContentConfig(
                     tools=[gemini_tools],
@@ -196,7 +200,7 @@ async def main():
                                         break
                             
                             if function_call:
-                                history.append(types.Content(role="model", parts=response_content_parts))
+                                if response_content_parts: history.append(types.Content(role="model", parts=response_content_parts))
                                 tool_name = function_call.name
                                 tool_args = dict(function_call.args)
 
@@ -246,7 +250,10 @@ async def main():
                                     
                                     # Combine the function response with the actual image parts
                                     history.append(types.Content(role='tool', parts=[function_response_part] + image_parts))
-                                    if image_parts: history.append(types.Content(role='model', parts=image_parts))
+                                    if image_parts:
+                                        # Add an explicit text part to prompt the model to analyze the image
+                                        text_prompt_part = types.Part.from_text(text="Here is the image you requested. Please analyze its content.")
+                                        history.append(types.Content(role='model', parts=[text_prompt_part] + image_parts))
 
                                 else:
                                     # --- Default handling for all other tools ---
