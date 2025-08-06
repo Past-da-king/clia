@@ -10,7 +10,7 @@ load_dotenv()
 MODEL_NAME = "gemini-2.5-flash"
 SYSTEM_PROMPT = AI_SYSTEM_PROMPT
 MCP_SERVER_SCRIPT = "swe_tools.run_server"
-MAX_TOOL_TURNS = 15
+MAX_TOOL_TURNS = 5
 
 # --- UI Configuration ---
 USER_NAME = "You"

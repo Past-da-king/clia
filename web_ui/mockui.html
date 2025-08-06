@@ -3,327 +3,420 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CLI Agent Chat</title>
-    <!-- Tailwind CSS CDN -->
+    <title>CLI Agent Terminal</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        /* Custom font and scrollbar styles */
-        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        :root {
+            --terminal-bg: #0a0e1a;
+            --terminal-surface: #1a1f2e;
+            --terminal-surface-light: #252b3f;
+            --terminal-border: #2d3748;
+            --terminal-text: #e2e8f0;
+            --terminal-text-muted: #94a3b8;
+            --terminal-accent: #00f5ff;
+            --terminal-accent-glow: rgba(0, 245, 255, 0.3);
+            --terminal-green: #00ff88;
+            --terminal-green-glow: rgba(0, 255, 136, 0.2);
+            --terminal-orange: #ffa500;
+            --terminal-red: #ff4757;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
 
         body {
             font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--terminal-bg) 0%, #0f1419 100%);
+            overflow: hidden;
         }
 
         .font-mono {
-            font-family: 'Fira Code', monospace;
+            font-family: 'JetBrains Mono', monospace;
         }
 
-        /* Custom scrollbar for a cleaner look */
-        .chat-messages::-webkit-scrollbar {
-            width: 6px;
+        /* Advanced Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
         }
-        .chat-messages::-webkit-scrollbar-track {
+        .custom-scrollbar::-webkit-scrollbar-track {
             background: transparent;
         }
-        .chat-messages::-webkit-scrollbar-thumb {
-            background: #4a5568; /* gray-600 */
-            border-radius: 3px;
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, var(--terminal-accent), var(--terminal-green));
+            border-radius: 10px;
+            border: 2px solid transparent;
+            background-clip: content-box;
         }
-        .chat-messages::-webkit-scrollbar-thumb:hover {
-            background: #718096; /* gray-500 */
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, var(--terminal-green), var(--terminal-accent));
+            background-clip: content-box;
+        }
+
+        /* Glow Effects */
+        .glow-accent {
+            box-shadow: 0 0 20px var(--terminal-accent-glow);
         }
         
-        /* Animation for new messages */
-        @keyframes fadeInUp {
+        .glow-green {
+            box-shadow: 0 0 15px var(--terminal-green-glow);
+        }
+
+        .text-glow {
+            text-shadow: 0 0 10px currentColor;
+        }
+
+        /* Animations */
+        @keyframes slideInUp {
             from {
                 opacity: 0;
-                transform: translateY(15px);
+                transform: translateY(30px) scale(0.95);
             }
             to {
                 opacity: 1;
-                transform: translateY(0);
+                transform: translateY(0) scale(1);
             }
         }
-        .fade-in-up {
-            animation: fadeInUp 0.4s ease-out forwards;
+
+        @keyframes pulse-glow {
+            0%, 100% { 
+                box-shadow: 0 0 20px var(--terminal-accent-glow);
+            }
+            50% { 
+                box-shadow: 0 0 30px var(--terminal-accent-glow), 0 0 40px var(--terminal-accent-glow);
+            }
         }
 
-        /* Blinking cursor animation for typing indicator */
-        @keyframes blink {
-            50% { opacity: 0; }
+        @keyframes terminal-cursor {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
         }
+
+        .slide-in-up {
+            animation: slideInUp 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        .pulse-glow {
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+
         .cursor-blink {
-            animation: blink 1s step-end infinite;
+            animation: terminal-cursor 1.2s infinite;
+        }
+
+        /* Terminal Window Effect */
+        .terminal-window {
+            background: var(--terminal-surface);
+            border: 1px solid var(--terminal-border);
+            border-radius: 12px;
+            box-shadow: 
+                0 25px 50px -12px rgba(0, 0, 0, 0.8),
+                0 0 0 1px rgba(255, 255, 255, 0.05),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+        }
+
+        /* Input Focus Effects */
+        .input-focus:focus-within {
+            background: linear-gradient(90deg, var(--terminal-surface), var(--terminal-surface-light));
+            border-color: var(--terminal-accent);
+            box-shadow: 
+                0 0 0 3px var(--terminal-accent-glow),
+                0 0 20px var(--terminal-accent-glow);
+        }
+
+        /* Message Bubble Improvements */
+        .message-bubble {
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Glassmorphism Effect */
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Hover Effects */
+        .hover-lift {
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        .hover-lift:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Grid Pattern Background */
+        .grid-bg {
+            background-image: 
+                linear-gradient(rgba(0, 245, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 245, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
         }
     </style>
     <script>
-        // Customizations for Tailwind CSS
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
-                        mono: ['Fira Code', 'monospace'],
+                        mono: ['JetBrains Mono', 'monospace'],
                     },
                     colors: {
-                      'cli-bg': '#0D1117',
-                      'cli-surface': '#161B22',
-                      'cli-border': '#30363D',
-                      'cli-text': '#C9D1D9',
-                      'cli-text-secondary': '#8B949E',
-                      'cli-accent': '#22D3EE', // cyan-400
-                      'cli-accent-dark': '#06B6D4', // cyan-500
-                      'cli-green': '#34D399', // emerald-400
+                        terminal: {
+                            bg: '#0a0e1a',
+                            surface: '#1a1f2e',
+                            'surface-light': '#252b3f',
+                            border: '#2d3748',
+                            text: '#e2e8f0',
+                            'text-muted': '#94a3b8',
+                            accent: '#00f5ff',
+                            green: '#00ff88',
+                            orange: '#ffa500',
+                            red: '#ff4757',
+                        }
                     }
                 }
             }
         }
     </script>
 </head>
-<body class="bg-cli-bg text-cli-text antialiased">
-
-    <div class="flex flex-col h-screen max-w-4xl mx-auto border-x border-cli-border">
-        <!-- Chat Header -->
-        <div class="px-6 py-4 border-b border-cli-border bg-cli-surface/80 backdrop-blur-sm">
-            <div class="flex items-center gap-4">
-                <div class="relative flex items-center justify-center w-8 h-8">
-                    <span class="absolute inline-flex h-full w-full rounded-full bg-cli-green/50 animate-ping"></span>
-                    <span class="relative inline-flex rounded-full h-3 w-3 bg-cli-green"></span>
+<body class="min-h-screen grid-bg">
+    <div class="flex flex-col h-screen max-w-6xl mx-auto p-4">
+        <!-- Terminal Window -->
+        <div class="terminal-window flex flex-col h-full overflow-hidden">
+            
+            <!-- Terminal Header -->
+            <div class="flex items-center justify-between p-4 border-b border-terminal-border/50 glass">
+                <!-- Window Controls -->
+                <div class="flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full bg-terminal-red hover-lift cursor-pointer"></div>
+                    <div class="w-3 h-3 rounded-full bg-terminal-orange hover-lift cursor-pointer"></div>
+                    <div class="w-3 h-3 rounded-full bg-terminal-green hover-lift cursor-pointer"></div>
                 </div>
-                <div>
-                    <h1 class="text-lg font-bold text-white">CLI Agent</h1>
-                    <p class="text-sm text-cli-text-secondary">Status: <span class="text-cli-green">Online</span> // Ready for commands</p>
+                
+                <!-- Terminal Title -->
+                <div class="flex items-center gap-3">
+                    <div class="relative">
+                        <div class="absolute inset-0 rounded-full bg-terminal-accent pulse-glow"></div>
+                        <div class="relative w-4 h-4 rounded-full bg-terminal-accent flex items-center justify-center">
+                            <div class="w-2 h-2 rounded-full bg-white"></div>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <h1 class="text-lg font-bold text-white font-mono tracking-wider">
+                            <span class="text-terminal-accent">CLI</span> 
+                            <span class="text-terminal-green">AGENT</span>
+                        </h1>
+                        <div class="flex items-center gap-2 text-xs text-terminal-text-muted">
+                            <div class="w-2 h-2 rounded-full bg-terminal-green glow-green"></div>
+                            <span>SYSTEM ONLINE</span>
+                            <span class="text-terminal-accent">•</span>
+                            <span class="font-mono">v2.1.0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- System Stats -->
+                <div class="flex items-center gap-4 text-xs font-mono text-terminal-text-muted">
+                    <div class="flex items-center gap-1">
+                        <i class="fas fa-microchip text-terminal-accent"></i>
+                        <span>CPU: 12%</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <i class="fas fa-memory text-terminal-green"></i>
+                        <span>RAM: 2.1GB</span>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Chat Messages -->
-        <div id="messages" class="flex-1 p-6 overflow-y-auto chat-messages">
-            <div class="flex items-start gap-4 message agent fade-in-up">
-                <div class="w-8 h-8 text-lg flex-shrink-0 bg-cli-surface border border-cli-border rounded-full flex items-center justify-center text-cli-accent">
-                    <i class="fa-solid fa-robot"></i>
-                </div>
-                <div class="flex flex-col flex-1 gap-2">
-                    <div class="flex items-start gap-3 font-mono">
-                        <span class="mt-0.5 text-cli-text-secondary">></span>
-                        <p class="flex-1 text-cli-text">Hello! I'm your CLI Agent. I can help you build applications and work with multimedia content. What would you like to create today?</p>
+            <!-- Chat Messages Area -->
+            <div id="messages" class="flex-1 p-6 overflow-y-auto custom-scrollbar">
+                <!-- Welcome Screen -->
+                <div class="slide-in-up mb-8">
+                    <div class="relative">
+                        <!-- Background Glow -->
+                        <div class="absolute inset-0 bg-gradient-to-r from-terminal-accent/20 to-terminal-green/20 rounded-2xl blur-xl"></div>
+                        
+                        <!-- Main Welcome Panel -->
+                        <div class="relative glass rounded-2xl p-8 text-center border-2 border-terminal-accent/30">
+                            <!-- ASCII Art Header -->
+                            <div class="mb-6">
+                                <pre class="font-mono text-terminal-accent text-xs leading-tight">
+    ╔══════════════════════════════════════════════════════════════╗
+    ║                    CONNECTION ESTABLISHED                     ║
+    ╚══════════════════════════════════════════════════════════════╝</pre>
+                            </div>
+                            
+                            <!-- Main Title -->
+                            <div class="mb-6">
+                                <h2 class="font-mono text-6xl font-bold bg-gradient-to-r from-terminal-accent via-white to-terminal-green bg-clip-text text-transparent mb-2 text-glow">
+                                    GEMINI
+                                </h2>
+                                <div class="h-1 w-32 mx-auto bg-gradient-to-r from-terminal-accent to-terminal-green rounded-full glow-accent"></div>
+                            </div>
+                            
+                            <!-- Info Cards -->
+                            <div class="grid grid-cols-3 gap-4 mb-6 text-sm">
+                                <div class="glass rounded-lg p-3 border border-terminal-border/50">
+                                    <i class="fas fa-shield-alt text-terminal-green mb-2"></i>
+                                    <div class="font-mono text-terminal-green">SECURE</div>
+                                    <div class="text-terminal-text-muted text-xs">Encrypted</div>
+                                </div>
+                                <div class="glass rounded-lg p-3 border border-terminal-border/50">
+                                    <i class="fas fa-bolt text-terminal-accent mb-2"></i>
+                                    <div class="font-mono text-terminal-accent">FAST</div>
+                                    <div class="text-terminal-text-muted text-xs">Low Latency</div>
+                                </div>
+                                <div class="glass rounded-lg p-3 border border-terminal-border/50">
+                                    <i class="fas fa-brain text-terminal-orange mb-2"></i>
+                                    <div class="font-mono text-terminal-orange">SMART</div>
+                                    <div class="text-terminal-text-muted text-xs">AI Powered</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Welcome Message -->
+                            <p class="text-terminal-text-muted">
+                                Welcome to the CLI Agent Terminal. Type your commands below or upload files to get started.
+                            </p>
+                            
+                            <!-- Blinking Cursor -->
+                            <div class="mt-4 font-mono text-terminal-accent">
+                                <span>Ready for input</span>
+                                <span class="cursor-blink">█</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="p-3 mt-1 text-sm border-l-4 rounded bg-cli-green/10 border-cli-green font-mono">
-                        <p class="font-semibold text-cli-green">[System Ready]</p>
-                        <p class="text-cli-text-secondary">All tools loaded. Multimedia support active.</p>
-                    </div>
                 </div>
+                <!-- Messages will be appended here -->
             </div>
-        </div>
 
-        <!-- Chat Input Area -->
-        <div class="p-4 border-t border-cli-border bg-cli-bg/90 backdrop-blur-sm">
-            <div id="attachedFiles" class="flex flex-wrap gap-2 mb-3"></div>
-            <div class="flex items-end gap-3 p-1 transition-all duration-300 border rounded-lg bg-cli-surface border-cli-border focus-within:border-cli-accent focus-within:ring-2 focus-within:ring-cli-accent/50">
-                <div class="flex items-center pl-2">
-                     <button onclick="document.getElementById('fileUpload').click()" title="Attach File" class="w-8 h-8 transition-colors rounded-md text-cli-text-secondary hover:bg-cli-border hover:text-white">
-                        <i class="fa-solid fa-paperclip"></i>
-                    </button>
-                    <!-- Hidden file inputs -->
+            <!-- Enhanced Input Area -->
+            <div class="p-6 border-t border-terminal-border/50 glass">
+                <!-- File Attachments Preview -->
+                <div id="attachedFiles" class="flex flex-wrap gap-3 mb-4"></div>
+                
+                <!-- Main Input Container -->
+                <div class="relative">
+                    <!-- Input Wrapper -->
+                    <div class="input-focus flex items-end gap-4 p-4 rounded-2xl bg-terminal-surface border-2 border-terminal-border/50 transition-all duration-300">
+                        
+                        <!-- Left Actions -->
+                        <div class="flex items-center gap-2">
+                            <!-- File Upload Button -->
+                            <button onclick="document.getElementById('fileUpload').click()" 
+                                    class="group relative w-10 h-10 rounded-xl bg-terminal-surface-light border border-terminal-border/50 hover:border-terminal-accent/50 transition-all duration-300 hover-lift">
+                                <i class="fas fa-paperclip text-terminal-text-muted group-hover:text-terminal-accent transition-colors"></i>
+                                <div class="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-terminal-surface-light px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                                    Attach
+                                </div>
+                            </button>
+                            
+                            <!-- Command Prompt -->
+                            <div class="flex items-center gap-2 font-mono">
+                                <span class="text-terminal-green text-glow">┌─[</span>
+                                <span class="text-terminal-accent">user@gemini</span>
+                                <span class="text-terminal-green">]</span>
+                                <br class="hidden">
+                                <span class="text-terminal-green">└─</span>
+                                <span class="text-terminal-accent text-xl">$</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Input Field -->
+                        <textarea id="messageInput" 
+                                placeholder="Enter your command..." 
+                                rows="1" 
+                                class="flex-1 bg-transparent border-none outline-none resize-none text-terminal-text placeholder:text-terminal-text-muted font-mono text-lg leading-relaxed"></textarea>
+                        
+                        <!-- Send Button -->
+                        <button id="sendBtn" 
+                                class="relative w-12 h-12 rounded-xl bg-gradient-to-r from-terminal-accent to-terminal-green hover:from-terminal-green hover:to-terminal-accent transition-all duration-300 hover-lift glow-accent group disabled:opacity-50 disabled:cursor-not-allowed">
+                            <i class="fas fa-paper-plane text-terminal-bg group-hover:scale-110 transition-transform"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Hidden File Inputs -->
                     <input type="file" id="imageUpload" class="hidden" accept="image/*" onchange="handleFileUpload(this)">
                     <input type="file" id="videoUpload" class="hidden" accept="video/*" onchange="handleFileUpload(this)">
                     <input type="file" id="audioUpload" class="hidden" accept="audio/*" onchange="handleFileUpload(this)">
                     <input type="file" id="fileUpload" class="hidden" accept="*" onchange="handleFileUpload(this)">
                 </div>
-                <span class="text-cli-accent-dark font-mono text-lg pb-2.5">$</span>
-                <textarea id="messageInput" placeholder="Enter your command or upload a file..." rows="1" class="flex-1 w-full p-2 text-base bg-transparent border-none outline-none resize-none text-cli-text placeholder:text-cli-text-secondary font-mono"></textarea>
-                <button id="sendBtn" class="w-10 h-10 mb-1 mr-1 transition-all duration-200 rounded-lg bg-cli-accent hover:bg-cli-accent-dark text-cli-bg disabled:opacity-50 disabled:cursor-not-allowed">
-                    <i class="fa-solid fa-paper-plane"></i>
-                </button>
+                
+                <!-- Quick Actions -->
+                <div class="flex justify-center mt-4">
+                    <div class="flex gap-2 text-xs font-mono text-terminal-text-muted">
+                        <span class="px-2 py-1 rounded bg-terminal-surface-light border border-terminal-border/30">
+                            <span class="text-terminal-accent">Ctrl+Enter</span> to send
+                        </span>
+                        <span class="px-2 py-1 rounded bg-terminal-surface-light border border-terminal-border/30">
+                            <span class="text-terminal-green">Tab</span> for suggestions
+                        </span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        let attachedFiles = [];
-
-        const messagesContainer = document.getElementById('messages');
+        // Auto-resize textarea
         const messageInput = document.getElementById('messageInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const attachedFilesContainer = document.getElementById('attachedFiles');
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
 
-        function getFileIcon(fileType) {
-            if (fileType.startsWith('image/')) return 'fa-solid fa-file-image';
-            if (fileType.startsWith('video/')) return 'fa-solid fa-file-video';
-            if (fileType.startsWith('audio/')) return 'fa-solid fa-file-audio';
-            if (fileType.startsWith('application/pdf')) return 'fa-solid fa-file-pdf';
-            if (fileType.startsWith('text/')) return 'fa-solid fa-file-lines';
-            return 'fa-solid fa-file';
-        }
-
-        function handleFileUpload(input) {
-            if (input.files.length > 0) {
-                Array.from(input.files).forEach(file => {
-                    if (!attachedFiles.some(f => f.name === file.name && f.size === file.size)) {
-                         attachedFiles.push(file);
-                    }
-                });
-                updateAttachedFiles();
-            }
-             // Reset the input value to allow re-selecting the same file
-            input.value = '';
-        }
-
-        function updateAttachedFiles() {
-            attachedFilesContainer.innerHTML = '';
-            attachedFiles.forEach((file, index) => {
-                const fileDiv = document.createElement('div');
-                fileDiv.className = 'flex items-center gap-2 px-3 py-1.5 text-sm rounded-full bg-cli-surface border border-cli-border text-cli-text-secondary';
-                fileDiv.innerHTML = `
-                    <i class="${getFileIcon(file.type)}"></i>
-                    <span class="font-mono">${file.name}</span>
-                    <button class="text-red-400 hover:text-red-300" onclick="removeFile(${index})"><i class="fa-solid fa-times-circle"></i></button>
-                `;
-                attachedFilesContainer.appendChild(fileDiv);
-            });
-            updateSendButtonState();
-        }
-
-        function removeFile(index) {
-            attachedFiles.splice(index, 1);
-            updateAttachedFiles();
-        }
-
-        function sendMessage() {
-            const message = messageInput.value.trim();
-            if (message || attachedFiles.length > 0) {
-                addUserMessage(message, attachedFiles);
-                messageInput.value = '';
-                messageInput.style.height = 'auto'; // Reset height
-                attachedFiles = [];
-                updateAttachedFiles();
-                
-                setTimeout(() => {
-                    showTypingIndicator();
-                    setTimeout(() => {
-                        hideTypingIndicator();
-                        addAgentResponse();
-                    }, Math.random() * 1500 + 1000); // Simulate variable response time
-                }, 300);
-            }
-        }
-
-        function addUserMessage(text, files) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'flex justify-end message user fade-in-up';
-            
-            let contentHTML = '';
-            if (text) {
-                contentHTML += `<div class="p-4 rounded-lg rounded-tr-none bg-cli-accent-dark text-white">${text.replace(/\n/g, '<br>')}</div>`;
-            }
-
-            if (files.length > 0) {
-                const filesHTML = files.map(file => {
-                    const url = URL.createObjectURL(file);
-                    if (file.type.startsWith('image/')) {
-                        return `<div class="mt-2 overflow-hidden border rounded-md border-cli-border"><img src="${url}" alt="Uploaded image" class="block w-full h-auto max-w-xs"></div>`;
-                    }
-                    if (file.type.startsWith('video/')) {
-                        return `<div class="mt-2 overflow-hidden border rounded-md border-cli-border"><video controls src="${url}" class="block w-full h-auto max-w-xs"></video></div>`;
-                    }
-                    if (file.type.startsWith('audio/')) {
-                        return `<div class="mt-2"><audio controls src="${url}" class="w-full max-w-xs"></audio></div>`;
-                    }
-                    return `<div class="mt-2 p-3 text-sm rounded-md bg-cli-surface flex items-center gap-3"><i class="${getFileIcon(file.type)} text-cli-text-secondary"></i><span class="font-mono">${file.name}</span></div>`;
-                }).join('');
-                contentHTML += `<div class="flex flex-col gap-2 mt-2">${filesHTML}</div>`;
-            }
-
-            messageDiv.innerHTML = `<div class="max-w-md">${contentHTML}</div>`;
-            messagesContainer.appendChild(messageDiv);
-            scrollToBottom();
-        }
-
-        function addAgentResponse() {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'flex items-start gap-4 message agent fade-in-up';
-
-            const responses = [
-                "I'll analyze your request and create the application. Let me use my development tools to build this for you.",
-                "Great! I can see the multimedia content. I'll process this and integrate it into the application structure.",
-                "Perfect! I'm initializing the project structure and configuring the necessary components. This will take a moment.",
-                "Excellent choice! I'll create a modern, responsive application with the features you've requested.",
-                "Command received. Executing code generation sequence... Stand by for output."
-            ];
-            const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-
-            messageDiv.innerHTML = `
-                <div class="w-8 h-8 text-lg flex-shrink-0 bg-cli-surface border border-cli-border rounded-full flex items-center justify-center text-cli-accent">
-                    <i class="fa-solid fa-robot"></i>
-                </div>
-                <div class="flex flex-col flex-1 gap-2">
-                    <div class="flex items-start gap-3 font-mono">
-                         <span class="mt-0.5 text-cli-text-secondary">></span>
-                         <p class="flex-1 text-cli-text">${randomResponse}</p>
-                    </div>
-                    <div class="p-3 mt-1 text-sm border-l-4 rounded bg-cyan-900/50 border-cli-accent font-mono">
-                        <p class="font-semibold text-cli-accent">[Tool Usage: dev_tools]</p>
-                        <p class="text-cli-text-secondary">> code_generation()<br>> file_processing()<br>> multimedia_integration()</p>
-                    </div>
-                </div>
-            `;
-            messagesContainer.appendChild(messageDiv);
-            scrollToBottom();
-        }
-
-        function showTypingIndicator() {
-            const typingDiv = document.createElement('div');
-            typingDiv.id = 'typingIndicator';
-            typingDiv.className = 'flex items-start gap-4 fade-in-up';
-            typingDiv.innerHTML = `
-                <div class="w-8 h-8 text-lg flex-shrink-0 bg-cli-surface border border-cli-border rounded-full flex items-center justify-center text-cli-accent">
-                    <i class="fa-solid fa-robot"></i>
-                </div>
-                <div class="flex items-start flex-1 gap-3 font-mono">
-                    <span class="mt-0.5 text-cli-text-secondary">></span>
-                    <span class="text-cli-text-secondary">Agent is typing<span class="inline-block w-1 ml-1 font-bold cursor-blink">_</span></span>
-                </div>
-            `;
-            messagesContainer.appendChild(typingDiv);
-            scrollToBottom();
-        }
-
-        function hideTypingIndicator() {
-            const typingIndicator = document.getElementById('typingIndicator');
-            if (typingIndicator) {
-                typingIndicator.remove();
-            }
-        }
-        
-        function scrollToBottom() {
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-
-        function updateSendButtonState() {
-             sendBtn.disabled = messageInput.value.trim().length === 0 && attachedFiles.length === 0;
-        }
-
-        // --- Event Listeners ---
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+        // Enhanced keyboard shortcuts
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
                 e.preventDefault();
-                sendMessage();
+                document.getElementById('sendBtn').click();
             }
         });
 
-        messageInput.addEventListener('input', () => {
-            // Auto-resize textarea
-            const maxHeight = 160; // 10rem
-            messageInput.style.height = 'auto';
-            messageInput.style.height = `${Math.min(messageInput.scrollHeight, maxHeight)}px`;
-            updateSendButtonState();
-        });
+        // Placeholder file upload handler
+        function handleFileUpload(input) {
+            const files = Array.from(input.files);
+            const attachedFiles = document.getElementById('attachedFiles');
+            
+            files.forEach(file => {
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'flex items-center gap-2 px-3 py-2 bg-terminal-surface-light rounded-lg border border-terminal-border/50 text-sm slide-in-up';
+                fileDiv.innerHTML = `
+                    <i class="fas fa-file text-terminal-accent"></i>
+                    <span class="text-terminal-text">${file.name}</span>
+                    <button onclick="this.parentElement.remove()" class="text-terminal-red hover:bg-terminal-red/20 rounded p-1">
+                        <i class="fas fa-times text-xs"></i>
+                    </button>
+                `;
+                attachedFiles.appendChild(fileDiv);
+            });
+        }
 
-        // Initial state update
-        updateSendButtonState();
+        // Add some interactive terminal effects
+        document.addEventListener('DOMContentLoaded', function() {
+            // Simulate typing effect for welcome message
+            const cursor = document.querySelector('.cursor-blink');
+            if (cursor) {
+                setInterval(() => {
+                    cursor.style.opacity = cursor.style.opacity === '0' ? '1' : '0';
+                }, 600);
+            }
+            
+            // Add focus effect to input
+            messageInput.addEventListener('focus', function() {
+                this.closest('.input-focus').classList.add('ring-2', 'ring-terminal-accent/30');
+            });
+            
+            messageInput.addEventListener('blur', function() {
+                this.closest('.input-focus').classList.remove('ring-2', 'ring-terminal-accent/30');
+            });
+        });
     </script>
 </body>
 </html>

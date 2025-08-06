@@ -53,11 +53,11 @@ async def main():
                     return
 
                 gemini_tools = types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools])
-                toolz = [mcp_session]
+                
                 # toolz.append(Tool(url_context=types.UrlContext))
                 # toolz.append(Tool(google_search=types.GoogleSearch))
                 generation_config = types.GenerateContentConfig(
-                    tools=toolz,
+                    tools=[gemini_tools],
                     system_instruction=SYSTEM_PROMPT,
                     thinking_config=types.ThinkingConfig(
                         include_thoughts=True
