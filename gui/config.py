@@ -7,10 +7,10 @@ from .system_prompt import AI_SYSTEM_PROMPT
 load_dotenv()
 
 # --- Configuration ---
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = "gemini-2.5-flash-lite"
 SYSTEM_PROMPT = AI_SYSTEM_PROMPT
 MCP_SERVER_SCRIPT = "swe_tools.run_server"
-MAX_TOOL_TURNS = 5
+MAX_TOOL_TURNS = 9
 
 # --- UI Configuration ---
 USER_NAME = "You"

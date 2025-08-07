@@ -8,6 +8,7 @@ from datetime import datetime
 import re
 import traceback
 import uuid
+import json
 
 # Add project root to sys.path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -147,6 +148,42 @@ async def websocket_endpoint(websocket: WebSocket):
                         tool_name = function_call.name
                         tool_args = dict(function_call.args)
 
+                        # Check for permissions
+                        permissions = {}
+                        permissions_file = "permissions.json"
+                        if os.path.exists(permissions_file):
+                            with open(permissions_file, "r") as f:
+                                try:
+                                    permissions = json.load(f)
+                                except json.JSONDecodeError:
+                                    permissions = {}
+
+                        always_allowed_tools = permissions.get("always_allowed", [])
+
+                        if tool_name not in always_allowed_tools:
+                            await websocket.send_json({
+                                "type": "permission_request",
+                                "tool_name": tool_name,
+                                "tool_args": str(tool_args)
+                            })
+
+                            try:
+                                permission_response = await asyncio.wait_for(websocket.receive_json(), timeout=300) # 5 minute timeout
+                                if permission_response.get("type") == "permission_response":
+                                    if permission_response.get("allow") == "always":
+                                        always_allowed_tools.append(tool_name)
+                                        with open(permissions_file, "w") as f:
+                                            json.dump({"always_allowed": always_allowed_tools}, f)
+                                    elif not permission_response.get("allow"): # Denied
+                                        await websocket.send_json({"type": "info_message", "content": f"Tool '{tool_name}' was not executed."})
+                                        continue
+                                else:
+                                    await websocket.send_json({"type": "error", "content": "Invalid response to permission request."})
+                                    continue
+                            except asyncio.TimeoutError:
+                                await websocket.send_json({"type": "error", "content": "Permission request timed out."})
+                                continue
+
                         await websocket.send_json({
                             "type": "tool_call",
                             "tool_name": tool_name,
@@ -154,12 +191,31 @@ async def websocket_endpoint(websocket: WebSocket):
                         })
                         
                         tool_result = await clia_mcp.call_tool(tool_name, tool_args)
+
+                        # --- FIX: Default handling for all other tools ---
+                        # Extract relevant information from the tool_result object
+                        result_summary = {}
+                        if hasattr(tool_result, 'stdout') and tool_result.stdout:
+                            result_summary['stdout'] = tool_result.stdout
+                        if hasattr(tool_result, 'stderr') and tool_result.stderr:
+                            result_summary['stderr'] = tool_result.stderr
+                        if hasattr(tool_result, 'error') and tool_result.error:
+                            result_summary['error'] = str(tool_result.error)
+                        if hasattr(tool_result, 'structured') and tool_result.structured:
+                            result_summary['structured_output'] = tool_result.structured
+
+                        # If no specific output is found, use a concise string representation
+                        if not result_summary:
+                            tool_output_str = "Tool executed successfully with no direct output."
+                        else:
+                            # Convert the summary dict to a clean string
+                            tool_output_str = json.dumps(result_summary, indent=2)
                         
-                        current_history.append(types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)}))
+                        current_history.append(types.Part.from_function_response(name=tool_name, response={"result": tool_output_str}))
                         await websocket.send_json({
                             "type": "tool_result",
                             "tool_name": tool_name,
-                            "result": str(tool_result)
+                            "result": tool_output_str
                         })
                     else:
                         break # No function call, so AI has finished its response
@@ -177,6 +233,16 @@ async def websocket_endpoint(websocket: WebSocket):
         except WebSocketDisconnect:
             print("WebSocket disconnected.")
             break
+        except genai_errors.ResourceExhausted as e:
+            retry_match = re.search(r"retryDelay': '(\d+)s'", str(e))
+            if retry_match:
+                wait_time = int(retry_match.group(1))
+                await websocket.send_json({"type": "info_message", "content": f"Rate limit exceeded. Waiting for {wait_time} seconds before retrying."})
+                await asyncio.sleep(wait_time)
+            else:
+                await websocket.send_json({"type": "info_message", "content": "Rate limit exceeded. Waiting for 60 seconds before retrying."})
+                await asyncio.sleep(60)
+            continue
         except genai_errors.ClientError as e:
             await websocket.send_json({"type": "error", "content": f"An API error occurred: {e}"})
             print(f"API Error: {e}")

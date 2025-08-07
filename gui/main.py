@@ -5,28 +5,18 @@ import os
 import sys
 import asyncio
 import traceback
-import re 
-from datetime import datetime 
 from rich.live import Live
 from rich.prompt import Prompt
 from rich.spinner import Spinner
 from rich.text import Text
 from rich.rule import Rule
-from rich.panel import Panel 
-from rich.markdown import Markdown 
 from google.genai import types
-from google.genai import errors as genai_errors
-from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
-from gui.config import MODEL_NAME, MCP_SERVER_SCRIPT,SYSTEM_PROMPT ,MAX_TOOL_TURNS, THEME, BOT_NAME
-from gui.ui import print_message, show_welcome_screen, console 
-from gui.file_selector import FileSelector 
+from gui.config import MODEL_NAME, SYSTEM_PROMPT, MCP_SERVER_SCRIPT, MAX_TOOL_TURNS, THEME, BOT_NAME
+from gui.ui import print_message, show_welcome_screen, console
 from gui.client import get_gemini_client
 from gui.tool_utils import mcp_tool_to_genai_tool
-import uvicorn
-import webbrowser
-import time
 import json
 
 sys.stdout.reconfigure(encoding='utf-8')
@@ -54,8 +44,6 @@ async def main():
 
                 gemini_tools = types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools])
                 
-                # toolz.append(Tool(url_context=types.UrlContext))
-                # toolz.append(Tool(google_search=types.GoogleSearch))
                 generation_config = types.GenerateContentConfig(
                     tools=[gemini_tools],
                     system_instruction=SYSTEM_PROMPT,
@@ -66,71 +54,28 @@ async def main():
 
                 show_welcome_screen()
                 history = []
-                
-                while True: 
+                with open("history.json", "w") as f:
+                    json.dump(history, f)
+
+                while True:
                     try:
-                        user_task_raw = Prompt.ask(Text(f"{THEME['user_prompt_icon']} ", style=THEME['user_title']))
-                        
-                        if user_task_raw.lower() in ["exit", "quit"]:
+                        user_task = Prompt.ask(Text(f"{THEME['user_prompt_icon']} ", style=THEME['user_title']))
+                        if user_task.lower() in ["exit", "quit"]:
                             print_message("Session ended. Goodbye!")
                             break
-                        if not user_task_raw.strip():
+                        if not user_task.strip():
                             continue
 
-                        user_task_parts = []
-                        tagged_files = []
-                        current_text_part = ""
-
-                        file_tag_pattern = re.compile(r"@([\w./\-]+)")
-
-                        last_idx = 0
-                        for match in file_tag_pattern.finditer(user_task_raw):
-                            if match.start() > last_idx:
-                                current_text_part += user_task_raw[last_idx:match.start()]
-                            
-                            if current_text_part:
-                                user_task_parts.append(types.Part.from_text(text=current_text_part))
-                                current_text_part = ""
-
-                            file_path = match.group(1)
-                            if os.path.exists(file_path):
-                                tagged_files.append(file_path)
-                                print_message(f"File added: {file_path}", role="file_tag")
-                            else:
-                                print_message(f"File not found: {file_path}", role="error")
-                            last_idx = match.end()
-                        
-                        if last_idx < len(user_task_raw):
-                            current_text_part += user_task_raw[last_idx:]
-                        
-                        if current_text_part:
-                            user_task_parts.append(types.Part.from_text(text=current_text_part))
-
-                        if not user_task_parts and not tagged_files:
-                            continue
-
-                        print_message(user_task_raw, role="user")
-                        
-                        content_parts = user_task_parts
-                        for file_path in tagged_files:
-                            try:
-                                # get_file_part returns a types.File object
-                                uploaded_file = await FileSelector(os.getcwd()).get_file_part(client, file_path)
-                                if uploaded_file:
-                                    # --- FIX: Create a proper Part from the uploaded File object ---
-                                    file_part = types.Part(file_data=types.FileData(
-                                        mime_type=uploaded_file.mime_type,
-                                        file_uri=uploaded_file.uri
-                                    ))
-                                    content_parts.append(file_part)
-                            except Exception as e:
-                                print_message(f"Error processing file {file_path}: {e}", role="error")
-
-                        history.append(types.Content(role='user', parts=content_parts))
+                        print_message(user_task, role="user")
+                        history.append(types.Content(role='user', parts=[types.Part.from_text(text=user_task)]))
                         
                         final_answer = ""
                         spinner = Spinner(THEME["thinking_spinner"], text=Text(" Thinking...", style=THEME["thought_title"]))
                         
+                        from rich.markdown import Markdown
+                        from rich.panel import Panel
+                        from datetime import datetime
+
                         turn_count = 0
                         while turn_count < MAX_TOOL_TURNS:
                             turn_count += 1
@@ -150,37 +95,8 @@ async def main():
                                 live_panel = None
 
                                 async for chunk in stream:
-                                    for part in chunk.candidates[0].content.parts:
-                                        if hasattr(part, 'function_call') and part.function_call:
-                                            function_call = part.function_call
-                                        
-                                        if part.text:
-                                            if hasattr(part, 'thought') and part.thought:
-                                                active_section = 'thoughts'
-                                                thoughts_md.markup += part.text
-                                            else:
-                                                if active_section != 'answer':
-                                                    active_section = 'answer'
-                                                    timestamp = datetime.now().strftime('%H:%M:%S')
-                                                    title_markup = f"[{THEME['bot_title']}]{THEME['bot_title_icon']} {BOT_NAME} [dim]({timestamp})[/]"
-                                                    if live_panel is not None:
-                                                        live_panel.title = Text.from_markup(title_markup)
-                                                        live_panel.border_style = THEME["accent_border"]
-                                                        live_panel.renderable = answer_md
-                                                    else:
-                                                        live_panel = Panel(
-                                                            answer_md,
-                                                            title=Text.from_markup(title_markup),
-                                                            border_style=THEME["accent_border"],
-                                                            title_align="left",
-                                                            padding=(1, 2)
-                                                        )
-                                                        live.update(live_panel)
-                                                answer_md.markup += part.text
-                                    
-                                    response_content_parts.extend(chunk.candidates[0].content.parts)
-
-                                    if live_panel is None and thoughts_md.markup:
+                                    if live_panel is None:
+                                        # First chunk received, switch from spinner to panel
                                         timestamp = datetime.now().strftime('%H:%M:%S')
                                         title_markup = f"[{THEME['info_title']}]{THEME['info_title_icon']} Thoughts [dim]({timestamp})[/]"
                                         live_panel = Panel(
@@ -192,85 +108,49 @@ async def main():
                                         )
                                         live.update(live_panel)
 
+                                    for part in chunk.candidates[0].content.parts:
+                                        if hasattr(part, 'function_call') and part.function_call:
+                                            function_call = part.function_call
+                                        
+                                        if part.text:
+                                            if hasattr(part, 'thought') and part.thought:
+                                                active_section = 'thoughts'
+                                                thoughts_md.markup += part.text
+                                            else:
+                                                if active_section != 'answer':
+                                                    active_section = 'answer'
+                                                    # Switch panel to answer style
+                                                    timestamp = datetime.now().strftime('%H:%M:%S')
+                                                    title_markup = f"[{THEME['bot_title']}]{THEME['bot_title_icon']} {BOT_NAME} [dim]({timestamp})[/]"
+                                                    live_panel.title = Text.from_markup(title_markup)
+                                                    live_panel.border_style = THEME["accent_border"]
+                                                    live_panel.renderable = answer_md
+                                                answer_md.markup += part.text
+                                    
+                                    response_content_parts.extend(chunk.candidates[0].content.parts)
                                     if function_call:
                                         live.stop()
                                         if thoughts_md.markup:
                                             print_message(thoughts_md.markup, role="info", title="Thoughts")
                                         break
                             
+                            # After the stream
                             if function_call:
-                                if response_content_parts: history.append(types.Content(role="model", parts=response_content_parts))
+                                history.append(types.Content(role="model", parts=response_content_parts))
                                 tool_name = function_call.name
                                 tool_args = dict(function_call.args)
 
                                 tool_message = f"Calling tool `{tool_name}` with arguments: `{tool_args}`"
-                                print_message(tool_message, role="tool_code")
-
+                                print_message(tool_message, role="info")
+                                
                                 tool_result = await mcp_session.call_tool(tool_name, tool_args)
-
-                                # --- Handle tool results ---
-                                if tool_name == "view_images":
-                                    image_parts = []
-                                    report_lines = []
-                                    
-                                    # tool_result.structured should be a list of dicts
-                                    image_results = tool_result.structured if hasattr(tool_result, 'structured') else []
-
-                                    if not isinstance(image_results, list):
-                                        report_lines.append(f"Error: Unexpected result format from view_images tool: {image_results}")
-                                        image_results = []
-
-                                    for result_data in image_results:
-                                        if result_data.get("error"):
-                                            report_lines.append(f"❌ Error for '{result_data.get('path', 'N/A')}': {result_data['error']}")
-                                        elif result_data.get('path'):
-                                            try:
-                                                uploaded_file = await FileSelector(os.getcwd()).get_file_part(client, result_data['path'])
-                                                if uploaded_file:
-                                                    file_part = types.Part(file_data=types.FileData(
-                                                        mime_type=uploaded_file.mime_type,
-                                                        uri=uploaded_file.uri # Changed 'file_uri' to 'uri'
-                                                    ))
-                                                    report_lines.append(f"✅ Successfully processed image: {result_data['path']}")
-                                                else:
-                                                    report_lines.append(f"❌ Failed to upload image: {result_data['path']}")
-                                            except Exception as e:
-                                                report_lines.append(f"❌ Exception while processing '{result_data['path']}': {e}")
-                                    
-                                    # Create a summary report for the model and the user
-                                    final_report = "\n".join(report_lines)
-                                    print_message(f"Image Viewer Result:\n{final_report}", role="tool_code")
-
-                                    # Create the function response part with the summary
-                                    function_response_part = types.Part.from_function_response(
-                                        name=tool_name,
-                                        response={"result": final_report}
-                                    )
-                                    
-                                    # Combine the function response with the actual image parts
-                                    history.append(types.Content(role='tool', parts=[function_response_part] + image_parts))
-                                    if image_parts:
-                                        # Add an explicit text part to prompt the model to analyze the image
-                                        text_prompt_part = types.Part.from_text(text="Here is the image you requested. Please analyze its content.")
-                                        history.append(types.Content(role='model', parts=[text_prompt_part] + image_parts))
-
-                                else:
-                                    # --- Default handling for all other tools ---
-                                    # The tool_result object itself can be stringified for a decent default representation.
-                                    tool_output_str = str(tool_result)
-                                    print_message(f"Tool `{tool_name}` returned a result.", role="tool_code")
-                                    
-                                    # Correctly append the tool result to history
-                                    tool_response_part = types.Part.from_function_response(
-                                        name=tool_name,
-                                        response={"result": tool_output_str}
-                                    )
-                                    history.append(types.Content(role='tool', parts=[tool_response_part]))
+                                
+                                history.append(types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)}))
+                                print_message(f"Tool `{tool_name}` returned a result.", role="info")
+                                # Loop continues to next turn
                             else:
                                 final_answer = answer_md.markup
-                                if thoughts_md.markup:
-                                    print_message(thoughts_md.markup, role="info", title="Thoughts")
-                                break
+                                break # Exit the while loop
 
                         if turn_count >= MAX_TOOL_TURNS:
                             final_answer = "Task may be incomplete due to reaching the maximum number of tool turns."
@@ -281,15 +161,11 @@ async def main():
                         
                         console.print(Rule(style=THEME["separator_style"]))
 
-                    except (KeyboardInterrupt, EOFError):
+                    except KeyboardInterrupt:
                         print_message("\nChat interrupted by user. Exiting.", role="info")
                         break
-                    except genai_errors.ClientError as e:
-                        print_message(f"An API error occurred: {e}", role="error")
-                        traceback.print_exc()
-                        continue
                     except Exception as e:
-                        print_message(f"An unexpected error occurred during generation or tool execution: {e}", role="error")
+                        print_message(f"An error occurred during generation or tool execution: {e}", role="error")
                         traceback.print_exc()
                         continue
     
@@ -298,28 +174,13 @@ async def main():
         traceback.print_exc()
 
 def run_clia():
-    if "--web" in sys.argv:
-        # Remove --web argument before passing to uvicorn
-        sys.argv.remove("--web")
-
-        # Ensure project root is in sys.path for the uvicorn subprocess
-        project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-        if project_root not in sys.path:
-            sys.path.insert(0, project_root)
-
-        print_message("Web UI is running at http://127.0.0.1:8000", role="info")
-        time.sleep(2) # Give the server a moment to start
-        webbrowser.open("http://127.0.0.1:8000")
-        uvicorn.run("web_ui.app:app", host="0.0.0.0", port=8000, reload=True, ws="websockets", app_dir=".")
-        print_message("Web UI is running at http://127.0.0.1:8000", role="info")
-    else:
-        try:
-            asyncio.run(main())
-        except KeyboardInterrupt:
-            pass
-        except Exception as e:
-            print(f"❌ A fatal error occurred: {e}")
-            traceback.print_exc()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        print(f"❌ A fatal error occurred: {e}")
+        traceback.print_exc()
 
 if __name__ == "__main__":
     run_clia()
