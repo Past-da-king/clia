@@ -16,13 +16,39 @@ from prompt_toolkit.keys import Keys
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style
 
+import json
+
 from gui.config import MCP_SERVER_SCRIPT, THEME
 from core.config import MODEL_NAME
-from gui.ui import create_message_panel, show_welcome_screen, console
+from gui.ui import create_message_panel, show_welcome_screen, console, create_permission_panel
 from gui.client import get_gemini_client
 from core.tool_utils import mcp_tool_to_genai_tool
 from core.ai_core import AICore
 from gui.file_completer import FileCompleter
+from gui.tool_completer import ToolCompleter
+from gui.completers import CombinedCompleter
+
+PERMISSIONS_FILE = "permissions.json"
+
+always_allowed_tools = set()
+
+def load_permissions():
+    global always_allowed_tools
+    if os.path.exists(PERMISSIONS_FILE):
+        with open(PERMISSIONS_FILE, "r") as f:
+            try:
+                permissions = json.load(f)
+                always_allowed_tools = set(permissions.get("always_allowed", []))
+            except json.JSONDecodeError:
+                always_allowed_tools = set()
+    else:
+        # Create an empty permissions file if it doesn't exist
+        with open(PERMISSIONS_FILE, "w") as f:
+            json.dump({"always_allowed": []}, f)
+
+def save_permissions():
+    with open(PERMISSIONS_FILE, "w") as f:
+        json.dump({"always_allowed": list(always_allowed_tools)}, f)
 
 sys.stdout.reconfigure(encoding='utf-8')
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -37,6 +63,8 @@ async def main():
     console.print(create_message_panel(f"🧠 Using Model: {MODEL_NAME}"))
     console.print(create_message_panel(f"🛠️ Looking for tool server: {MCP_SERVER_SCRIPT}"))
 
+    load_permissions()
+
     server_params = StdioServerParameters(command=sys.executable, args=["-m", MCP_SERVER_SCRIPT], env={**os.environ.copy(), 'PYTHONPATH': os.getcwd()})
 
     try:
@@ -49,6 +77,9 @@ async def main():
                 if not mcp_tools_response or not mcp_tools_response.tools:
                     console.print(create_message_panel("❌ ERROR: No tools found on the MCP server.", role="error"))
                     return
+
+                # Store tool descriptions for permission panel
+                tool_descriptions = {t.name: t.description for t in mcp_tools_response.tools}
 
                 gemini_tools = types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools])
               
@@ -64,13 +95,19 @@ async def main():
                     'bottom-toolbar': 'bg:#333333 #ffffff',
                 })
 
+                # Initialize completers
+                file_completer = FileCompleter()
+                tool_names = [t.name for t in mcp_tools_response.tools]
+                tool_completer = ToolCompleter(tool_names=tool_names)
+                combined_completer = CombinedCompleter(file_completer, tool_completer)
+
                 # Define a callable for the bottom toolbar
                 def get_bottom_toolbar():
-                    return HTML(f"<b><style bg=\"#333333\" fg=\"#ffffff\">Press Ctrl-C to exit. Type '@' for file completion.</style></b>")
+                    return HTML(f"<b><style bg=\"#9400D3\" fg=\"#ffffff\">Press Ctrl-C to exit. Type '@' for file completion. Type '#' for tool completion.</style></b>")
 
                 # Setup prompt_toolkit session
                 session = PromptSession(
-                    completer=FileCompleter(),
+                    completer=combined_completer,
                     auto_suggest=AutoSuggestFromHistory(),
                     bottom_toolbar=get_bottom_toolbar,
                     style=custom_style
@@ -106,12 +143,54 @@ async def main():
                                 if event["type"] == "thoughts":
                                     console.print(create_message_panel(event["content"], role="thoughts"))
                                 elif event["type"] == "tool_call":
-                                    console.print(create_message_panel(f"Calling tool `{event['tool_name']}` with arguments: `{event['tool_args']}`", role="tool_call"))
-                                elif event["type"] == "tool_result":
-                                    console.print(create_message_panel(f"""Tool `{event['tool_name']}` returned: 
+                                    tool_name = event["tool_name"]
+                                    tool_args = event["tool_args"]
+                                    tool_description = tool_descriptions.get(tool_name, "No description available.")
+
+                                    tool_allowed = False
+                                    if tool_name in always_allowed_tools:
+                                        tool_allowed = True
+                                        console.print(create_message_panel(f"Tool `{tool_name}` automatically allowed (always allowed).", role="info"))
+                                    else:
+                                        console.print(create_permission_panel(tool_name, str(tool_args), tool_description))
+                                        while True:
+                                            permission_choice = await session.prompt_async(Text("Enter your choice (1, 2, or 3): ", style="bold white").plain)
+                                            if permission_choice == "1":
+                                                tool_allowed = True
+                                                console.print(create_message_panel(f"Tool `{tool_name}` allowed for this turn.", role="info"))
+                                                break
+                                            elif permission_choice == "2":
+                                                tool_allowed = True
+                                                always_allowed_tools.add(tool_name)
+                                                save_permissions()
+                                                console.print(create_message_panel(f"Tool `{tool_name}` always allowed from now on.", role="info"))
+                                                break
+                                            elif permission_choice == "3":
+                                                tool_allowed = False
+                                                console.print(create_message_panel(f"Tool `{tool_name}` denied.", role="info"))
+                                                break
+                                            else:
+                                                console.print(create_message_panel("Invalid choice. Please enter 1, 2, or 3.", role="error"))
+                                    
+                                    if tool_allowed:
+                                        console.print(create_message_panel(f"Calling tool `{tool_name}` with arguments: `{tool_args}`", role="tool_call"))
+                                        tool_result = await ai_core.mcp_session.call_tool(tool_name, tool_args)
+                                        history_part = types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)})
+                                        gemini_history.append(history_part)
+                                        console.print(create_message_panel(f"""Tool `{tool_name}` returned: 
 ```json
-{str(event['result'])}
+{str(tool_result)}
 ```""", role="info", title="Tool Result"))
+                                    else:
+                                        tool_result = {"status": "denied", "message": f"Tool call for `{tool_name}` was denied by the user."}
+                                        history_part = types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)})
+                                        gemini_history.append(history_part)
+                                        console.print(create_message_panel(f"""Tool `{tool_name}` returned: 
+```json
+{str(tool_result)}
+```""", role="info", title="Tool Result"))
+
+
                                 elif event["type"] == "bot_response":
                                     console.print(create_message_panel(event["content"], role="bot"))
                                 elif event["type"] == "error":

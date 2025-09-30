@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*- 
 
 import re
 from datetime import datetime
@@ -68,7 +68,7 @@ def create_message_panel(text: str, role: str = "info", title: str | None = None
         renderable_content,
         title=Text.from_markup(title_markup),
         title_align="left",
-        box=box_preset,
+        box=box.DOUBLE,
         border_style=border_color,
         padding=(1, 2),
         style=f"on {THEME['background_color']}"
@@ -96,27 +96,33 @@ def show_welcome_screen() -> Panel:
     )
     return Align.center(panel)
 
-def display_file_suggestions(file_list: str, current_input: str) -> Panel:
-    """Displays a formatted panel of file suggestions based on current input."""
-    files = file_list.splitlines()
-    filtered_files = [f for f in files if current_input.lower() in f.lower()]
-
-    if not filtered_files:
-        return Panel(Text("No matching files found.", style="dim"), title="File Suggestions", border_style=THEME["panel_border"], style=f"on {THEME['background_color']}")
-
-    # Limit to top N suggestions for readability
-    display_files = filtered_files[:10]
-
-    suggestions_text = Text()
-    for f in display_files:
-        suggestions_text.append(f, style="#ADD8E6") # Light blue for file names
-        suggestions_text.append("\n")
-
-    return Panel(
-        suggestions_text,
-        title="File Suggestions",
-        border_style=THEME["accent_border"],
-        box=box.ROUNDED,
-        padding=(0, 1),
+def create_permission_panel(tool_name: str, tool_args: str, tool_description: str) -> Panel:
+    """Creates and returns a styled panel for tool permission requests."""
+    timestamp = datetime.now().strftime('%H:%M:%S')
+    title_markup = f"[{THEME['tool_call_style']}]{THEME['tool_call_icon']} Tool Permission Request [dim]({timestamp})[/]"
+    
+    content = Text()
+    content.append(f"The AI wants to call tool: ", style="bold white")
+    content.append(f"`{tool_name}`", style="bold #FFA500") # Orange for tool name
+    content.append("\n")
+    content.append(f"Arguments: ", style="bold white")
+    content.append(f"`{tool_args}`", style="#ADD8E6") # Light blue for arguments
+    content.append("\n")
+    content.append(f"Description: {tool_description}", style="white")
+    content.append("\n\n")
+    
+    content.append("Please choose an action:\n", style="bold white")
+    content.append("1. Allow Once (Execute this command now)\n", style="green")
+    content.append(f"2. Always Allow `{tool_name}` (Execute now and bypass future prompts for this tool)\n", style="yellow")
+    content.append("3. Deny (Do not execute this command)\n", style="red")
+    
+    panel = Panel(
+        content,
+        title=Text.from_markup(title_markup),
+        title_align="left",
+        box=box.DOUBLE,
+        border_style=THEME["tool_call_style"],
+        padding=(1, 2),
         style=f"on {THEME['background_color']}"
     )
+    return panel
