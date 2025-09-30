@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 async def main():
     """Main function for the stable Polished Scrolling UI."""
-    client = get_gemini_client()
+    client = await get_gemini_client()
     gemini_history = []
 
     console.print(show_welcome_screen())

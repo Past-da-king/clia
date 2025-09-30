@@ -66,3 +66,11 @@ random
 pip-wheel-metadata/
 __pypackages__/
 __pycache__/
+
+# Project-specific ignores
+docs/
+image.png
+image-1.png
+image-2.png
+Yenv.txt
+interactive_file_input.py
