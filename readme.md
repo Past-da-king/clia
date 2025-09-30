@@ -99,12 +99,12 @@ The AI's responses will often include:
 
 ### CLI
 
-To start the CLI SWE AI Assistant, ensure your virtual environment is activated and run:
+To use the CLI SWE AI Assistant on a specific project, first navigate to that project's root directory in your terminal. Then, ensure your virtual environment is activated and run:
 
 ```bash
 clia
 ```
-Once started, you will see an interactive prompt where you can type your commands.
+Once started, you will see an interactive prompt where you can type your commands. The AI will operate within the context of the directory you launched it from.
 
 ### Web UI
 
