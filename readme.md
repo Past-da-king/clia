@@ -41,7 +41,7 @@ You can install the CLI SWE AI Assistant in a few ways:
 
 1.  **Clone the repository and install locally (recommended for development):**
     ```bash
-    git clone <repository_url>
+    git clone https://github.com/Past-da-king/clia.git
     cd clia
     ```
     (Replace `<repository_url>` with the actual URL of your repository.)
@@ -64,7 +64,7 @@ You can install the CLI SWE AI Assistant in a few ways:
 2.  **Install directly from a Git repository (for users):**
     If you want to use the CLI SWE AI Assistant without cloning the repository first, you can install it directly from its Git URL:
     ```bash
-    pip install git+https://github.com/yourusername/yourrepository.git
+    pip install git+https://github.com/Past-da-king/clia.git
     ```
     (Replace `https://github.com/yourusername/yourrepository.git` with the actual URL of the project's Git repository.)
 
