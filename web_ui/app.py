@@ -14,8 +14,9 @@ import json
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from gui.client import get_gemini_client
-from gui.config import MODEL_NAME, SYSTEM_PROMPT, MAX_TOOL_TURNS
-from gui.tool_utils import mcp_tool_to_genai_tool
+from core.config import MODEL_NAME, SYSTEM_PROMPT, MAX_TOOL_TURNS
+from core.tool_utils import mcp_tool_to_genai_tool
+from core.ai_core import AICore
 
 from swe_tools.__init__ import mcp as clia_mcp # Import the FastMCP instance
 
@@ -44,23 +45,6 @@ async def initialize_gemini_client():
 @app.on_event("startup")
 async def startup_event():
     await initialize_gemini_client()
-    # Mount the MCP server as an ASGI application
-    app.mount("/mcp_tools", clia_mcp.streamable_http_app(), name="mcp_tools")
-
-    # Get tools from the mounted MCP server
-    mcp_tools_response = await clia_mcp.list_tools()
-    if not mcp_tools_response:
-        print("ERROR: No tools found on the MCP server.")
-        return
-
-    gemini_tools = types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response])
-    app.state.generation_config = types.GenerateContentConfig(
-        tools=[gemini_tools],
-        system_instruction=SYSTEM_PROMPT,
-        thinking_config=types.ThinkingConfig(
-            include_thoughts=True
-        )
-    )
     print("AI components initialized successfully.")
 
 @app.get("/", response_class=HTMLResponse)
@@ -77,8 +61,13 @@ async def websocket_endpoint(websocket: WebSocket):
     # Initialize chat history for this session
     current_history = [] 
 
-    # Send initial welcome message
-    
+    mcp_tools_response = await clia_mcp.list_tools()
+    if not mcp_tools_response:
+        print("ERROR: No tools found on the MCP server.")
+        return
+
+    gemini_tools = types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response])
+    ai_core = AICore(gemini_client, clia_mcp, gemini_tools)
 
     while True:
         try:
@@ -95,11 +84,6 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 # Process attached files
                 for file_data in file_data_list:
-                    # In a real scenario, you'd upload these files to Gemini's file API
-                    # For now, we'll simulate or use a placeholder
-                    # This part needs careful implementation as Gemini's file API is async
-                    # and requires file_uri, not direct content.
-                    # For this prototype, we'll just add a text part indicating file presence
                     await websocket.send_json({
                         "type": "info_message",
                         "content": f"Received file: {file_data['filename']} ({file_data['mime_type']}). File processing for Gemini API is a complex topic and will be simplified for this prototype."
@@ -109,45 +93,23 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 if not content_parts:
                     continue
-
-                current_history.append(types.Content(role='user', parts=content_parts))
                 
                 await websocket.send_json({"type": "typing_indicator", "status": "start"})
 
-                final_answer_parts = []
-                turn_count = 0
-                
-                while turn_count < MAX_TOOL_TURNS:
-                    turn_count += 1
-                    
-                    stream = await gemini_client.aio.models.generate_content_stream(
-                        model=MODEL_NAME,
-                        contents=current_history,
-                        config=app.state.generation_config # Use the stored generation_config
-                    )
-                    
-                    function_call = None
-                    response_content_parts = []
-
-                    async for chunk in stream:
+                async for event in ai_core.process_message(current_history, user_text):
+                    if event["type"] == "stream":
+                        chunk = event["content"]
                         for part in chunk.candidates[0].content.parts:
-                            if hasattr(part, 'function_call') and part.function_call:
-                                function_call = part.function_call
-                            
                             if part.text:
                                 if hasattr(part, 'thought') and part.thought:
                                     await websocket.send_json({"type": "thoughts", "content": part.text})
                                 else:
                                     await websocket.send_json({"type": "agent_message_stream", "content": part.text})
-                                    final_answer_parts.append(part) # Accumulate parts for final answer
-                        
-                        response_content_parts.extend(chunk.candidates[0].content.parts)
-
-                    if function_call:
-                        current_history.append(types.Content(role="model", parts=response_content_parts))
-                        tool_name = function_call.name
-                        tool_args = dict(function_call.args)
-
+                    elif event["type"] == "thoughts":
+                        await websocket.send_json({"type": "thoughts", "content": event["content"]})
+                    elif event["type"] == "tool_call":
+                        tool_name = event["tool_name"]
+                        tool_args = event["tool_args"]
                         # Check for permissions
                         permissions = {}
                         permissions_file = "permissions.json"
@@ -183,49 +145,24 @@ async def websocket_endpoint(websocket: WebSocket):
                             except asyncio.TimeoutError:
                                 await websocket.send_json({"type": "error", "content": "Permission request timed out."})
                                 continue
-
                         await websocket.send_json({
                             "type": "tool_call",
                             "tool_name": tool_name,
                             "tool_args": str(tool_args)
                         })
-                        
-                        tool_result = await clia_mcp.call_tool(tool_name, tool_args)
-
-                        # --- FIX: Default handling for all other tools ---
-                        # Extract relevant information from the tool_result object
-                        result_summary = {}
-                        if hasattr(tool_result, 'stdout') and tool_result.stdout:
-                            result_summary['stdout'] = tool_result.stdout
-                        if hasattr(tool_result, 'stderr') and tool_result.stderr:
-                            result_summary['stderr'] = tool_result.stderr
-                        if hasattr(tool_result, 'error') and tool_result.error:
-                            result_summary['error'] = str(tool_result.error)
-                        if hasattr(tool_result, 'structured') and tool_result.structured:
-                            result_summary['structured_output'] = tool_result.structured
-
-                        # If no specific output is found, use a concise string representation
-                        if not result_summary:
-                            tool_output_str = "Tool executed successfully with no direct output."
-                        else:
-                            # Convert the summary dict to a clean string
-                            tool_output_str = json.dumps(result_summary, indent=2)
-                        
-                        current_history.append(types.Part.from_function_response(name=tool_name, response={"result": tool_output_str}))
+                    elif event["type"] == "tool_result":
                         await websocket.send_json({
                             "type": "tool_result",
-                            "tool_name": tool_name,
-                            "result": tool_output_str
+                            "tool_name": event["tool_name"],
+                            "result": str(event["result"])
                         })
-                    else:
-                        break # No function call, so AI has finished its response
+                    elif event["type"] == "bot_response":
+                        # This is now handled by the stream
+                        pass
+                    elif event["type"] == "error":
+                        await websocket.send_json({"type": "error", "content": event["content"]})
 
                 await websocket.send_json({"type": "typing_indicator", "status": "stop"})
-
-                if turn_count >= MAX_TOOL_TURNS:
-                    final_answer_parts.append(types.Part.from_text(text="Task may be incomplete due to reaching the maximum number of tool turns."))
-
-                current_history.append(types.Content(role="model", parts=final_answer_parts))
 
             elif message["type"] == "ping":
                 await websocket.send_json({"type": "pong"})

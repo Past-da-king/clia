@@ -118,7 +118,7 @@ $deeply/nested/path/to/file3.ext
 Create an entire web app with HTML, CSS, JavaScript, and configuration:
 
 ```python
-input_content = "/"/"/
+input_content = '''
 $index.html
 1: <!DOCTYPE html>
 2: <html lang="en">
@@ -134,7 +134,7 @@ $index.html
 12: </body>
 13: </html>
 $styles/main.css
-1: * {
+1: *
 2:     margin: 0;
 3:     padding: 0;
 4:     box-sizing: border-box;
@@ -175,7 +175,7 @@ $README.md
 6: 
 7: 1. Install dependencies: `npm install`
 8: 2. Start the server: `npm start`
-"/"/"/
+'''
 
 write_files_from_snapshot(input_snapshot_content=input_content)
 ```
@@ -184,46 +184,41 @@ write_files_from_snapshot(input_snapshot_content=input_content)
 Create a complete Python package structure:
 
 ```python
-input_content = "/"/"/
+input_content = '''
 $src/mypackage/__init__.py
-1: "/"/"/A sample Python package."/"/"/
-2: 
-3: from .core import main_function
-4: from .utils import helper_function
-5: 
-6: __version__ = "1.0.0"
+1: 
+2: from .core import main_function
+3: from .utils import helper_function
+4: 
+5: __version__ = "1.0.0"
 $src/mypackage/core.py
-1: "/"/"/Core functionality for the package."/"'/"/
-2: 
-3: def main_function(data):
-4:     "/"/"Main processing function."/"/"/
-5:     return f"Processing: {data}"
+1: 
+2: def main_function(data):
+3:     '''Main processing function.''''
+4:     return f"Processing: {data}"
 $src/mypackage/utils.py
-1: "/"/"/Utility functions for the package."/"/"/
-2: 
-3: def helper_function(value):
-4:     "/"/"/Helper function for data processing."/"/"/
-5:     return value.upper()
+1: 
+2: def helper_function(value):
+3:     '''Helper function for data processing.''''
+4:     return value.upper()
 $tests/test_core.py
-1: "/"/"/Tests for core functionality."/"/"/
-2: 
-3: import unittest
-4: from src.mypackage.core import main_function
-5: 
-6: class TestCore(unittest.TestCase):
-7:     def test_main_function(self):
-8:         result = main_function("test")
-9:         self.assertEqual(result, "Processing: test")
+1: 
+2: import unittest
+3: from src.mypackage.core import main_function
+4: 
+5: class TestCore(unittest.TestCase):
+6:     def test_main_function(self):
+7:         result = main_function("test")
+8:         self.assertEqual(result, "Processing: test")
 $tests/test_utils.py
-1: "/"/"/Tests for utility functions."/"/"/
-2: 
-3: import unittest
-4: from src.mypackage.utils import helper_function
-5: 
-6: class TestUtils(unittest.TestCase):
-7:     def test_helper_function(self):
-8:         result = helper_function("hello")
-9:         self.assertEqual(result, "HELLO")
+1: 
+2: import unittest
+3: from src.mypackage.utils import helper_function
+4: 
+5: class TestUtils(unittest.TestCase):
+6:     def test_helper_function(self):
+7:         result = helper_function("hello")
+8:         self.assertEqual(result, "HELLO")
 $setup.py
 1: from setuptools import setup, find_packages
 2: 
@@ -231,12 +226,12 @@ $setup.py
 4:     name="mypackage",
 5:     version="1.0.0",
 6:     packages=find_packages(where="src"),
-7:     package_dir={"": "src"},
+7:     package_dir={"" : "src"},
 8: )
 $requirements.txt
 1: pytest>=6.0.0
 2: setuptools>=45.0.0
-"/"/"/
+'''
 
 write_files_from_snapshot(input_snapshot_content=input_content)
 ```
@@ -296,14 +291,14 @@ This tool transforms you from a single-file editor into a full-scale project arc
 -   **Input Deep Dive:** `input_snapshot_content: str`. The string must be formatted with `$$path/to/file` headers and `line_num:content` lines. The tool strips the line numbers before writing.
 -   **Output Interpretation:** A summary report. Look for "Successfully wrote" for each file.
 -   **Correct Usage Example:**
-    `write_files_from_snapshot(input_snapshot_content="/"/"/$$README.md
+    `write_files_from_snapshot(input_snapshot_content='''$$README.md
     ```markdown
     1:# My Project
     ```
     $$src/main.py
     ```python
     1:print("init")
-    ```"/"/"/)`
+    ```''')`
 
 ---
 
@@ -316,9 +311,9 @@ This tool transforms you from a single-file editor into a full-scale project arc
     -   Adding a new function to an existing file.
 -   **Input Deep Dive:** `changes: str`. The string must be formatted like `write_files_from_snapshot`, but should **only** contain the lines being changed or inserted.
 -   **Output Interpretation:** A summary report of which files were successfully modified.
--   **Correct Usage Example:** `edit_file_lines(changes="/"/"/$$src/main.py
+-   **Correct Usage Example:** `edit_file_lines(changes='''$$src/main.py
     42:    return "a corrected value"
-    "/"/"/)`
+    ''')`
 
 ---
 
@@ -358,10 +353,8 @@ Your goal is not just to complete tasks, but to do so with the precision, reliab
 """
 
 
-
-
 AI_SYSTEM_PROMPT1="""
--
+- 
 
 # 📢 **Permanent Instructions for You (The AI) — When I Give You Access to My Project Directory**
 
@@ -573,5 +566,4 @@ ge
 
 """
 
-
-AI_SYSTEM_PROMPT=PERSONA_SYSTEM_PROMPT2+"\\n"+AI_SYSTEM_PROMPT1
+AI_SYSTEM_PROMPT=PERSONA_SYSTEM_PROMPT2+"\n"+AI_SYSTEM_PROMPT1

@@ -5,29 +5,37 @@ import os
 import sys
 import asyncio
 import traceback
-from rich.live import Live
-from rich.prompt import Prompt
-from rich.spinner import Spinner
 from rich.text import Text
-from rich.rule import Rule
 from google.genai import types
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
-from gui.config import MODEL_NAME, SYSTEM_PROMPT, MCP_SERVER_SCRIPT, MAX_TOOL_TURNS, THEME, BOT_NAME
-from gui.ui import print_message, show_welcome_screen, console
+from prompt_toolkit import PromptSession
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.keys import Keys
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.styles import Style
+
+from gui.config import MCP_SERVER_SCRIPT, THEME
+from core.config import MODEL_NAME
+from gui.ui import create_message_panel, show_welcome_screen, console
 from gui.client import get_gemini_client
-from gui.tool_utils import mcp_tool_to_genai_tool
-import json
+from core.tool_utils import mcp_tool_to_genai_tool
+from core.ai_core import AICore
+from gui.file_completer import FileCompleter
 
 sys.stdout.reconfigure(encoding='utf-8')
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 async def main():
-    """Main function to run the chat application."""
+    """Main function for the stable Polished Scrolling UI."""
     client = get_gemini_client()
-    
-    print_message("🤖 CLI SWE AI Initializing...")
-    print_message(f"🧠 Using Model: {MODEL_NAME}")
-    print_message(f"🛠️  Looking for tool server: {MCP_SERVER_SCRIPT}")
+    gemini_history = []
+
+    console.print(show_welcome_screen())
+    console.print(create_message_panel("🤖 CLI SWE AI Initializing..."))
+    console.print(create_message_panel(f"🧠 Using Model: {MODEL_NAME}"))
+    console.print(create_message_panel(f"🛠️ Looking for tool server: {MCP_SERVER_SCRIPT}"))
 
     server_params = StdioServerParameters(command=sys.executable, args=["-m", MCP_SERVER_SCRIPT], env={**os.environ.copy(), 'PYTHONPATH': os.getcwd()})
 
@@ -35,151 +43,104 @@ async def main():
         async with stdio_client(server_params) as (read, write):
             async with ClientSession(read, write) as mcp_session:
                 await mcp_session.initialize()
-                print_message("✅ MCP Tool Server Connected.")
+                console.print(create_message_panel("✅ MCP Tool Server Connected."))
 
                 mcp_tools_response = await mcp_session.list_tools()
                 if not mcp_tools_response or not mcp_tools_response.tools:
-                    print_message("❌ ERROR: No tools found on the MCP server.", role="error")
+                    console.print(create_message_panel("❌ ERROR: No tools found on the MCP server.", role="error"))
                     return
 
                 gemini_tools = types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools])
-                
-                generation_config = types.GenerateContentConfig(
-                    tools=[gemini_tools],
-                    system_instruction=SYSTEM_PROMPT,
-                    thinking_config=types.ThinkingConfig(
-                        include_thoughts=True
-                    )
+              
+                ai_core = AICore(client, mcp_session, gemini_tools)
+
+                # Define custom styles for prompt_toolkit
+                custom_style = Style.from_dict({
+                    'completion-menu': 'bg:#1a1a1a #ffffff',
+                    'completion-menu.completion': 'bg:#1a1a1a #ffffff',
+                    'completion-menu.completion.current': 'bg:#007bff #ffffff',
+                    'completion-menu.completion.meta': 'fg:#888888',
+                    'completion-menu.completion.meta.current': 'fg:#ffffff bg:#007bff',
+                    'bottom-toolbar': 'bg:#333333 #ffffff',
+                })
+
+                # Define a callable for the bottom toolbar
+                def get_bottom_toolbar():
+                    return HTML(f"<b><style bg=\"#333333\" fg=\"#ffffff\">Press Ctrl-C to exit. Type '@' for file completion.</style></b>")
+
+                # Setup prompt_toolkit session
+                session = PromptSession(
+                    completer=FileCompleter(),
+                    auto_suggest=AutoSuggestFromHistory(),
+                    bottom_toolbar=get_bottom_toolbar,
+                    style=custom_style
                 )
 
-                show_welcome_screen()
-                history = []
-                with open("history.json", "w") as f:
-                    json.dump(history, f)
+                # Define key bindings
+                kb = KeyBindings()
+
+                @kb.add(Keys.ControlC)
+                def _(event):
+                    """Exit when Ctrl-C is pressed."""
+                    event.app.exit()
 
                 while True:
                     try:
-                        user_task = Prompt.ask(Text(f"{THEME['user_prompt_icon']} ", style=THEME['user_title']))
-                        if user_task.lower() in ["exit", "quit"]:
-                            print_message("Session ended. Goodbye!")
+                        user_task_input = await session.prompt_async(Text(f"{THEME['user_prompt_icon']} ", style=THEME['user_title']).plain, key_bindings=kb)
+
+                        # Handle None case for user_task_input (Ctrl+D or exit via keybinding)
+                        if user_task_input is None:
+                            console.print(create_message_panel("Session ended. Goodbye!", role="info"))
                             break
-                        if not user_task.strip():
+
+                        if user_task_input.lower() in ["exit", "quit"]:
+                            console.print(create_message_panel("Session ended. Goodbye!"))
+                            break
+                        if not user_task_input.strip():
                             continue
 
-                        print_message(user_task, role="user")
-                        history.append(types.Content(role='user', parts=[types.Part.from_text(text=user_task)]))
+                        console.print(create_message_panel(user_task_input, role="user"))
                         
-                        final_answer = ""
-                        spinner = Spinner(THEME["thinking_spinner"], text=Text(" Thinking...", style=THEME["thought_title"]))
-                        
-                        from rich.markdown import Markdown
-                        from rich.panel import Panel
-                        from datetime import datetime
+                        with console.status("[bold green]Thinking...[/bold green]") as status:
+                            async for event in ai_core.process_message(gemini_history, user_task_input):
+                                if event["type"] == "thoughts":
+                                    console.print(create_message_panel(event["content"], role="thoughts"))
+                                elif event["type"] == "tool_call":
+                                    console.print(create_message_panel(f"Calling tool `{event['tool_name']}` with arguments: `{event['tool_args']}`", role="tool_call"))
+                                elif event["type"] == "tool_result":
+                                    console.print(create_message_panel(f"""Tool `{event['tool_name']}` returned: 
+```json
+{str(event['result'])}
+```""", role="info", title="Tool Result"))
+                                elif event["type"] == "bot_response":
+                                    console.print(create_message_panel(event["content"], role="bot"))
+                                elif event["type"] == "error":
+                                    console.print(create_message_panel(event["content"], role="error"))
 
-                        turn_count = 0
-                        while turn_count < MAX_TOOL_TURNS:
-                            turn_count += 1
-                            
-                            with Live(spinner, console=console, screen=False, auto_refresh=True, vertical_overflow="visible", transient=True) as live:
-                                stream = await client.aio.models.generate_content_stream(
-                                    model=MODEL_NAME,
-                                    contents=history,
-                                    config=generation_config
-                                )
-                                
-                                thoughts_md = Markdown("")
-                                answer_md = Markdown("")
-                                function_call = None
-                                response_content_parts = []
-                                active_section = None
-                                live_panel = None
 
-                                async for chunk in stream:
-                                    if live_panel is None:
-                                        # First chunk received, switch from spinner to panel
-                                        timestamp = datetime.now().strftime('%H:%M:%S')
-                                        title_markup = f"[{THEME['info_title']}]{THEME['info_title_icon']} Thoughts [dim]({timestamp})[/]"
-                                        live_panel = Panel(
-                                            thoughts_md,
-                                            title=Text.from_markup(title_markup),
-                                            border_style=THEME["panel_border"],
-                                            title_align="left",
-                                            padding=(1, 2)
-                                        )
-                                        live.update(live_panel)
-
-                                    for part in chunk.candidates[0].content.parts:
-                                        if hasattr(part, 'function_call') and part.function_call:
-                                            function_call = part.function_call
-                                        
-                                        if part.text:
-                                            if hasattr(part, 'thought') and part.thought:
-                                                active_section = 'thoughts'
-                                                thoughts_md.markup += part.text
-                                            else:
-                                                if active_section != 'answer':
-                                                    active_section = 'answer'
-                                                    # Switch panel to answer style
-                                                    timestamp = datetime.now().strftime('%H:%M:%S')
-                                                    title_markup = f"[{THEME['bot_title']}]{THEME['bot_title_icon']} {BOT_NAME} [dim]({timestamp})[/]"
-                                                    live_panel.title = Text.from_markup(title_markup)
-                                                    live_panel.border_style = THEME["accent_border"]
-                                                    live_panel.renderable = answer_md
-                                                answer_md.markup += part.text
-                                    
-                                    response_content_parts.extend(chunk.candidates[0].content.parts)
-                                    if function_call:
-                                        live.stop()
-                                        if thoughts_md.markup:
-                                            print_message(thoughts_md.markup, role="info", title="Thoughts")
-                                        break
-                            
-                            # After the stream
-                            if function_call:
-                                history.append(types.Content(role="model", parts=response_content_parts))
-                                tool_name = function_call.name
-                                tool_args = dict(function_call.args)
-
-                                tool_message = f"Calling tool `{tool_name}` with arguments: `{tool_args}`"
-                                print_message(tool_message, role="info")
-                                
-                                tool_result = await mcp_session.call_tool(tool_name, tool_args)
-                                
-                                history.append(types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)}))
-                                print_message(f"Tool `{tool_name}` returned a result.", role="info")
-                                # Loop continues to next turn
-                            else:
-                                final_answer = answer_md.markup
-                                break # Exit the while loop
-
-                        if turn_count >= MAX_TOOL_TURNS:
-                            final_answer = "Task may be incomplete due to reaching the maximum number of tool turns."
-
-                        if final_answer:
-                            print_message(final_answer, role="bot")
-                            history.append(types.Content(role="model", parts=[types.Part.from_text(text=final_answer)]))
-                        
-                        console.print(Rule(style=THEME["separator_style"]))
-
+                    except EOFError:
+                        # User pressed Ctrl-D
+                        break
                     except KeyboardInterrupt:
-                        print_message("\nChat interrupted by user. Exiting.", role="info")
+                        # User pressed Ctrl-C, handled by key binding
+                        console.print(create_message_panel("\nChat interrupted by user. Exiting.", role="info"))
                         break
                     except Exception as e:
-                        print_message(f"An error occurred during generation or tool execution: {e}", role="error")
-                        traceback.print_exc()
+                        error_msg = f"An error occurred: {e}\n{traceback.format_exc()}"
+                        console.print(create_message_panel(error_msg, role="error"))
                         continue
     
     except Exception as e:
-        print_message(f"❌ An unexpected error occurred during MCP server connection: {e}", role="error")
-        traceback.print_exc()
+        console.print(create_message_panel(f"❌ An unexpected error occurred during MCP server connection: {e}\n{traceback.format_exc()}", role="error"))
 
 def run_clia():
+    """Entry point for the console script."""
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        pass
+        console.print("\n[bold red]CLI terminated.[/bold red]")
     except Exception as e:
-        print(f"❌ A fatal error occurred: {e}")
+        console.print(f"❌ A fatal error occurred: {e}")
         traceback.print_exc()
 
 if __name__ == "__main__":

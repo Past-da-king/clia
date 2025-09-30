@@ -1,37 +1,29 @@
-# -*- coding: utf-8 -*-
-
 import os
 from dotenv import load_dotenv
-from .system_prompt import AI_SYSTEM_PROMPT
+from core.config import MODEL_NAME, SYSTEM_PROMPT, MAX_TOOL_TURNS
 
 load_dotenv()
 
-# --- Configuration ---
-MODEL_NAME = "gemini-2.5-flash-lite"
-SYSTEM_PROMPT = AI_SYSTEM_PROMPT
-MCP_SERVER_SCRIPT = "swe_tools.run_server"
-MAX_TOOL_TURNS = 9
-
 # --- UI Configuration ---
-USER_NAME = "You"
+USER_NAME = "User"
 BOT_NAME = "Gemini"
+MCP_SERVER_SCRIPT = "swe_tools.run_server"
 THEME = {
-    "user_prompt_icon": "❯",
-    "user_title_icon": "●", # Filled circle
-    "bot_title_icon": "◆", # Diamond
-    "thinking_title_icon": "…", # Ellipsis
-    "info_title_icon": "i", # Lowercase i for info
-    "error_title_icon": "✕", # Multiplication X
-    "tool_call_icon": "⚙", # Gear
-    "file_tag_icon": "📄", # Document icon
-    "user_title": "bold #FF69B4",  # Hot Pink
-    "bot_title": "bold #6495ED",  # Cornflower Blue
-    "error_title": "bold #FF4500", # Orange Red
-    "info_title": "bold #32CD32", # Lime Green
-    "thought_title": "#FFD700", # Gold
-    "tool_call_style": "bold #8A2BE2", # Blue Violet
-    "panel_border": "#4F4F4F", # Dim Gray
-    "accent_border": "#6495ED", # Cornflower Blue
-    "thinking_spinner": "dots", # Changed spinner style
-    "separator_style": "#4F4F4F", # Dim Gray
+    "user_prompt_icon": "›",
+    "user_title_icon": "●",
+    "bot_title_icon": "◆",
+    "info_title_icon": "ⓘ",
+    "error_title_icon": "✖",
+    "tool_call_icon": "🛠",
+    "user_title": "bold #00BFFF",  # Deep Sky Blue
+    "bot_title": "bold #9370DB",  # Medium Purple
+    "error_title": "bold #FF6347",  # Tomato
+    "info_title": "bold #3CB371",  # Medium Sea Green
+    "thought_title": "#FFD700",  # Gold
+    "tool_call_style": "bold #FFA500",  # Orange
+    "panel_border": "#555555",
+    "accent_border": "#9370DB",  # Medium Purple
+    "thinking_spinner": "dots",
+    "separator_style": "#555555",
+    "background_color": "#000000", # Dark background for panels
 }

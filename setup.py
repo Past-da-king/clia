@@ -7,7 +7,7 @@ def read_requirements():
 setup(
     name='clia-swe-ai',
     version='0.1.0',
-    packages=['gui', 'swe_tools'],
+    packages=['gui', 'swe_tools', 'core'],
     include_package_data=True,
     install_requires=read_requirements(),
     entry_points={

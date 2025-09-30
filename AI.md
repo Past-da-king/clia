@@ -1,5 +1,5 @@
 -
-
+![alt text](image-1.png)![alt text](image-2.png)![alt text](image-3.png)
 # 📢 **Permanent Instructions for You (The AI) — When I Give You Access to My Project Directory**
 
 ---
