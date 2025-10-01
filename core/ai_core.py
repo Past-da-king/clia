@@ -33,7 +33,6 @@ class AICore:
                 config=self.generation_config
             )
 
-            thoughts_text = ""
             bot_response_text = ""
             function_call = None
             response_content_parts = []
@@ -50,16 +49,14 @@ class AICore:
                             if part.function_call:
                                 function_call = part.function_call
                             if part.text:
-                                if "Thought:" in part.text or "Plan:" in part.text:
-                                    thoughts_text += part.text
+                                if part.thought:
+                                    yield {"type": "thoughts", "content": part.text}
                                 else:
                                     bot_response_text += part.text
+  
+                        
                 
                 yield {"type": "stream", "content": chunk}
-
-
-            if thoughts_text:
-                yield {"type": "thoughts", "content": thoughts_text}
 
             if response_content_parts:
                 history.append(types.Content(role='model', parts=response_content_parts))

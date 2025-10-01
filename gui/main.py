@@ -152,6 +152,7 @@ async def main():
                                         tool_allowed = True
                                         console.print(create_message_panel(f"Tool `{tool_name}` automatically allowed (always allowed).", role="info"))
                                     else:
+                                        status.stop() # Stop the thinking indicator
                                         console.print(create_permission_panel(tool_name, str(tool_args), tool_description))
                                         while True:
                                             permission_choice = await session.prompt_async(Text("Enter your choice (1, 2, or 3): ", style="bold white").plain)
@@ -171,6 +172,7 @@ async def main():
                                                 break
                                             else:
                                                 console.print(create_message_panel("Invalid choice. Please enter 1, 2, or 3.", role="error"))
+                                        status.start() # Restart the thinking indicator
                                     
                                     if tool_allowed:
                                         console.print(create_message_panel(f"Calling tool `{tool_name}` with arguments: `{tool_args}`", role="tool_call"))
