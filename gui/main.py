@@ -6,6 +6,13 @@ import sys
 import asyncio
 import traceback
 from rich.text import Text
+from rich.live import Live
+from rich.panel import Panel
+from rich.spinner import Spinner
+from rich.console import Group
+from rich.markdown import Markdown
+from rich import box
+from datetime import datetime
 from google.genai import types
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
@@ -121,15 +128,15 @@ async def main():
                     """Exit when Ctrl-C is pressed."""
                     event.app.exit()
 
+
+
                 while True:
                     try:
                         user_task_input = await session.prompt_async(Text(f"{THEME['user_prompt_icon']} ", style=THEME['user_title']).plain, key_bindings=kb)
 
-                        # Handle None case for user_task_input (Ctrl+D or exit via keybinding)
                         if user_task_input is None:
                             console.print(create_message_panel("Session ended. Goodbye!", role="info"))
                             break
-
                         if user_task_input.lower() in ["exit", "quit"]:
                             console.print(create_message_panel("Session ended. Goodbye!"))
                             break
@@ -137,12 +144,37 @@ async def main():
                             continue
 
                         console.print(create_message_panel(user_task_input, role="user"))
+
+                        spinner = Spinner("dots", text=Text("Thinking...", style="green"))
+                        thought_panel = Panel(
+                            Text(""),
+                            box=box.DOUBLE,
+                            border_style="green",
+                            padding=(1, 2),
+                            style=f"on {THEME['background_color']}"
+                        )
+                        live_group = Group(spinner)
                         
-                        with console.status("[bold green]Thinking...[/bold green]") as status:
+                        live = Live(live_group, console=console, auto_refresh=False, vertical_overflow="visible")
+                        live.start()
+                        
+                        first_thought_received = False
+                        
+                        try:
+                            #render spinner only
+                            live.refresh()
                             async for event in ai_core.process_message(gemini_history, user_task_input):
-                                if event["type"] == "thoughts":
-                                    console.print(create_message_panel(event["content"], role="thoughts"))
+                                if event["type"] == "stream":
+                                        live.refresh() 
+                                elif event["type"] == "thoughts": 
+                                    if not first_thought_received:
+                                        live_group.renderables.append(thought_panel)
+                                        first_thought_received = True
+                                    thought_panel.renderable = Markdown(event["content"], inline_code_lexer="python")
                                 elif event["type"] == "tool_call":
+                                    live.refresh()
+                                   # live.stop()
+                                    
                                     tool_name = event["tool_name"]
                                     tool_args = event["tool_args"]
                                     tool_description = tool_descriptions.get(tool_name, "No description available.")
@@ -152,7 +184,7 @@ async def main():
                                         tool_allowed = True
                                         console.print(create_message_panel(f"Tool `{tool_name}` automatically allowed (always allowed).", role="info"))
                                     else:
-                                        status.stop() # Stop the thinking indicator
+                                        live.stop()
                                         console.print(create_permission_panel(tool_name, str(tool_args), tool_description))
                                         while True:
                                             permission_choice = await session.prompt_async(Text("Enter your choice (1, 2, or 3): ", style="bold white").plain)
@@ -172,38 +204,44 @@ async def main():
                                                 break
                                             else:
                                                 console.print(create_message_panel("Invalid choice. Please enter 1, 2, or 3.", role="error"))
-                                        status.start() # Restart the thinking indicator
+                                        live.start()
+                                        live.refresh()
                                     
                                     if tool_allowed:
                                         console.print(create_message_panel(f"Calling tool `{tool_name}` with arguments: `{tool_args}`", role="tool_call"))
                                         tool_result = await ai_core.mcp_session.call_tool(tool_name, tool_args)
                                         history_part = types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)})
                                         gemini_history.append(history_part)
-                                        console.print(create_message_panel(f"""Tool `{tool_name}` returned: 
-```json
-{str(tool_result)}
-```""", role="info", title="Tool Result"))
+                                        console.print(create_message_panel(f'''Tool `{tool_name}` returned: 
+                                                        ```json
+                                                        {str(tool_result)}
+                                                        ```''', role="info", title="Tool Result"))
                                     else:
                                         tool_result = {"status": "denied", "message": f"Tool call for `{tool_name}` was denied by the user."}
                                         history_part = types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)})
                                         gemini_history.append(history_part)
-                                        console.print(create_message_panel(f"""Tool `{tool_name}` returned: 
-```json
-{str(tool_result)}
-```""", role="info", title="Tool Result"))
-
-
+                                        console.print(create_message_panel(f'''Tool `{tool_name}` returned: 
+                                                        ```json
+                                                        {str(tool_result)}
+                                                        ```''', role="info", title="Tool Result"))
+                                        live.refresh()
+                                    # live.start()
+                                    # live.refresh()
                                 elif event["type"] == "bot_response":
+                                    live.stop()  
                                     console.print(create_message_panel(event["content"], role="bot"))
+                                    break
                                 elif event["type"] == "error":
+                                    live.stop()   
                                     console.print(create_message_panel(event["content"], role="error"))
-
+                                    break
+                        finally:
+    
+                            live.stop()
 
                     except EOFError:
-                        # User pressed Ctrl-D
                         break
                     except KeyboardInterrupt:
-                        # User pressed Ctrl-C, handled by key binding
                         console.print(create_message_panel("\nChat interrupted by user. Exiting.", role="info"))
                         break
                     except Exception as e:

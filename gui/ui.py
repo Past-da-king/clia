@@ -79,14 +79,14 @@ def show_welcome_screen() -> Panel:
     """Creates the initial welcome message panel."""
     welcome_text = Text("""
 
-██████╗ ███████╗███╗   ███╗██╗███╗   ██╗██╗
-██╔════╝ ██╔════╝████╗ ████║██║████╗  ██║██║
-██║  ███╗█████╗  ██╔████╔██║██║██╔██╗ ██║██║
-██║   ██║██╔══╝  ██║╚██╔╝██║██║██║╚██╗██║██║
-╚██████╔╝███████╗██║ ╚═╝ ██║██║██║ ╚████║██║
- ╚═════╝ ╚══════╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═╝
+         ██████╗██╗     ██╗ █████╗ 
+        ██╔════╝██║     ██║██╔══██╗
+        ██║     ██║     ██║███████║
+        ██║     ██║     ██║██╔══██║
+        ╚██████╗███████╗██║██║  ██║
+        ╚═════╝╚══════╝╚═╝╚═╝  ╚═╝
 
-""", style="bold #6495ED", justify="center")
+""", style="#00F7FF", justify="center")
     welcome_subtext = Text(f"Welcome! You are chatting with {MODEL_NAME}.", justify="center", style="#32CD32")
     panel = Panel(
         Text.from_markup(f"{welcome_text}\n\n{welcome_subtext}"),
@@ -113,7 +113,7 @@ def create_permission_panel(tool_name: str, tool_args: str, tool_description: st
     
     content.append("Please choose an action:\n", style="bold white")
     content.append("1. Allow Once (Execute this command now)\n", style="green")
-    content.append(f"2. Always Allow `{tool_name}` (Execute now and bypass future prompts for this tool)\n", style="yellow")
+    content.append(f"2. Always Allow `{tool_name}` (Execute now and bypass future prompts for this tool)\n", style="blue")
     content.append("3. Deny (Do not execute this command)\n", style="red")
     
     panel = Panel(
