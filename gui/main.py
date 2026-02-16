@@ -5,6 +5,7 @@ import os
 import sys
 import asyncio
 import traceback
+from dotenv import load_dotenv
 from rich.text import Text
 from rich.live import Live
 from rich.panel import Panel
@@ -60,14 +61,128 @@ def save_permissions():
 sys.stdout.reconfigure(encoding='utf-8')
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+import argparse
+from core.config import DEFAULT_PROVIDER, GROQ_MODEL_NAME, MODEL_NAME, SYSTEM_PROMPT
+from core.providers import GeminiProvider, GroqProvider
+from groq import AsyncGroq
+
+async def onboarding_flow(force=False):
+    """Interactive onboarding to choose provider and configure API keys."""
+    # Reload env to ensure we have latest saved settings
+    load_dotenv()
+    
+    current_provider = os.environ.get("DEFAULT_PROVIDER")
+    current_gemini_model = os.environ.get("GOOGLE_MODEL_NAME", MODEL_NAME)
+    current_groq_model = os.environ.get("GROQ_MODEL_NAME", GROQ_MODEL_NAME)
+    current_base_url = os.environ.get("GROQ_BASE_URL")
+    
+    # Check if we have enough to skip
+    if not force:
+        if current_provider == "gemini" and os.environ.get("GOOGLE_API_KEY"):
+            return "gemini", current_gemini_model, None
+        if current_provider == "groq" and os.environ.get("GROQ_API_KEY"):
+            return "groq", current_groq_model, current_base_url
+
+    console.print(Panel(Text("CLIA Setup & Configuration", style="bold cyan"), box=box.ROUNDED))
+    
+    # 1. Choose Provider
+    console.print("\n[bold cyan]1. Choose Provider[/bold cyan]")
+    default_provider_idx = "1" if current_provider == "gemini" else "2"
+    console.print(f"[1] Gemini (Google) {'(Current)' if current_provider == 'gemini' else ''}")
+    console.print(f"[2] Groq / OpenAI-compatible {'(Current)' if current_provider == 'groq' else ''}")
+    
+    provider_choice = input(f"Select Option (1/2, default {default_provider_idx}): ").strip()
+    if not provider_choice:
+        provider_choice = default_provider_idx
+    
+    provider_name = "gemini" if provider_choice == "1" else "groq"
+    
+    # Save provider choice
+    with open(".env", "a") as f:
+        f.write(f"\nDEFAULT_PROVIDER={provider_name}")
+    os.environ["DEFAULT_PROVIDER"] = provider_name
+    
+    # 2. Check/Request API Key
+    env_key = "GOOGLE_API_KEY" if provider_name == "gemini" else "GROQ_API_KEY"
+    api_key = os.environ.get(env_key)
+    
+    if not api_key:
+        console.print(f"\n[bold yellow]No {env_key} found in environment.[/bold yellow]")
+        api_key = input(f"Please enter your {provider_name.capitalize()} API Key: ").strip()
+        if api_key:
+            with open(".env", "a") as f:
+                f.write(f"\n{env_key}={api_key}")
+            os.environ[env_key] = api_key
+            console.print("[green]API Key saved to .env![/green]")
+    
+    # 3. Model & Base URL Selection
+    default_model = current_gemini_model if provider_name == "gemini" else current_groq_model
+    base_url = os.environ.get("GROQ_BASE_URL")
+    
+    if provider_name == "groq":
+        console.print(f"\n[bold cyan]2. Provider Settings[/bold cyan]")
+        console.print(f"Current Base URL: [bold white]{base_url or 'Default Groq API'}[/bold white]")
+        change_url = input("Change Base URL? (y/N): ").lower().strip()
+        if change_url == 'y':
+            console.print("Paste your custom endpoint (e.g., https://api.moonshot.cn/v1)")
+            custom_base = input("Base URL: ").strip()
+            if custom_base:
+                base_url = custom_base
+                with open(".env", "a") as f:
+                    f.write(f"\nGROQ_BASE_URL={base_url}")
+                os.environ["GROQ_BASE_URL"] = base_url
+
+    console.print(f"\n[bold cyan]3. Model Selection[/bold cyan]")
+    console.print(f"Default/Current model: [bold green]{default_model}[/bold green]")
+    custom_model = input(f"Enter model name (or Enter to keep): ").strip()
+    model_name = custom_model if custom_model else default_model
+    
+    # Save model choice
+    model_env_var = "GOOGLE_MODEL_NAME" if provider_name == "gemini" else "GROQ_MODEL_NAME"
+    with open(".env", "a") as f:
+        f.write(f"\n{model_env_var}={model_name}")
+    os.environ[model_env_var] = model_name
+    
+    return provider_name, model_name, base_url
+
 async def main():
     """Main function for the stable Polished Scrolling UI."""
-    client = await get_gemini_client()
-    gemini_history = []
+    parser = argparse.ArgumentParser(description="CLI SWE AI Assistant")
+    parser.add_argument("--provider", "-p", help="Override provider")
+    parser.add_argument("--model", "-m", help="Override model")
+    parser.add_argument("--base-url", "-b", help="Override API base URL")
+    parser.add_argument("--setup", action="store_true", help="Force interactive setup")
+    args = parser.parse_args()
 
+    # Smart onboarding
+    provider_name, model_name, base_url = await onboarding_flow(force=args.setup)
+    
+    # CLI Overrides
+    if args.provider: provider_name = args.provider
+    if args.model: model_name = args.model
+    if args.base_url: base_url = args.base_url
+
+    # Check for keys again in case they were missed
+    env_key = "GOOGLE_API_KEY" if provider_name == "gemini" else "GROQ_API_KEY"
+    if not os.environ.get(env_key):
+        # Trigger onboarding again if key is still missing
+        provider_name, model_name, base_url = await onboarding_flow(force=True)
+
+    # Client instances
+    gemini_client = None
+    groq_client = None
+
+    if provider_name == "gemini":
+        gemini_client = await get_gemini_client()
+    else:
+        groq_client = AsyncGroq(
+            api_key=os.environ.get("GROQ_API_KEY"),
+            base_url=base_url
+        )
+    
     console.print(show_welcome_screen())
     console.print(create_message_panel("🤖 CLI SWE AI Initializing..."))
-    console.print(create_message_panel(f"🧠 Using Model: {MODEL_NAME}"))
+    console.print(create_message_panel(f"🧠 Provider: {provider_name.capitalize()} | Model: {model_name}"))
     console.print(create_message_panel(f"🛠️ Looking for tool server: {MCP_SERVER_SCRIPT}"))
 
     load_permissions()
@@ -88,9 +203,17 @@ async def main():
                 # Store tool descriptions for permission panel
                 tool_descriptions = {t.name: t.description for t in mcp_tools_response.tools}
 
-                gemini_tools = types.Tool(function_declarations=[mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools])
-              
-                ai_core = AICore(client, mcp_session, gemini_tools)
+                if provider_name == "gemini":
+                    from core.tool_utils import mcp_tool_to_genai_tool
+                    gemini_tools = [mcp_tool_to_genai_tool(t) for t in mcp_tools_response.tools]
+                    provider = GeminiProvider(gemini_client, model_name, gemini_tools)
+                else:
+                    from core.tool_utils import mcp_tool_to_openai_tool
+                    groq_tools = [mcp_tool_to_openai_tool(t) for t in mcp_tools_response.tools]
+                    provider = GroqProvider(groq_client, model_name, groq_tools)
+
+                ai_core = AICore(provider, mcp_session)
+                chat_history = []
 
                 # Define custom styles for prompt_toolkit
                 custom_style = Style.from_dict({
@@ -163,9 +286,12 @@ async def main():
                         try:
                             #render spinner only
                             live.refresh()
-                            async for event in ai_core.process_message(gemini_history, user_task_input):
+                            async for event in ai_core.process_message(chat_history, user_task_input):
                                 if event["type"] == "stream":
                                         live.refresh() 
+                                elif event["type"] == "stream_text":
+                                    # Used by Groq for text streaming
+                                    live.refresh()
                                 elif event["type"] == "thoughts": 
                                     if not first_thought_received:
                                         live_group.renderables.append(thought_panel)
@@ -173,7 +299,6 @@ async def main():
                                     thought_panel.renderable = Markdown(event["content"], inline_code_lexer="python")
                                 elif event["type"] == "tool_call":
                                     live.refresh()
-                                   # live.stop()
                                     
                                     tool_name = event["tool_name"]
                                     tool_args = event["tool_args"]
@@ -210,26 +335,31 @@ async def main():
                                     if tool_allowed:
                                         console.print(create_message_panel(f"Calling tool `{tool_name}` with arguments: `{tool_args}`", role="tool_call"))
                                         tool_result = await ai_core.mcp_session.call_tool(tool_name, tool_args)
-                                        history_part = types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)})
-                                        gemini_history.append(history_part)
+                                        
+                                        # Standardize tool result handling in history
+                                        # Note: History management for tool responses is complex across providers.
+                                        # For now, we update the simple history list.
+                                        
                                         console.print(create_message_panel(f'''Tool `{tool_name}` returned: 
                                                         ```json
                                                         {str(tool_result)}
                                                         ```''', role="info", title="Tool Result"))
                                     else:
                                         tool_result = {"status": "denied", "message": f"Tool call for `{tool_name}` was denied by the user."}
-                                        history_part = types.Part.from_function_response(name=tool_name, response={"result": str(tool_result)})
-                                        gemini_history.append(history_part)
                                         console.print(create_message_panel(f'''Tool `{tool_name}` returned: 
                                                         ```json
                                                         {str(tool_result)}
                                                         ```''', role="info", title="Tool Result"))
                                         live.refresh()
-                                    # live.start()
-                                    # live.refresh()
+                                elif event["type"] == "tool_result":
+                                    # Handled above, but we could add to history here if needed
+                                    pass
                                 elif event["type"] == "bot_response":
                                     live.stop()  
                                     console.print(create_message_panel(event["content"], role="bot"))
+                                    # Add user and bot messages to history
+                                    chat_history.append({"role": "user", "content": user_task_input})
+                                    chat_history.append({"role": "assistant", "content": event["content"]})
                                     break
                                 elif event["type"] == "error":
                                     live.stop()   

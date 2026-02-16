@@ -29,3 +29,35 @@ def mcp_tool_to_genai_tool(mcp_tool: MCPTool) -> types.FunctionDeclaration:
         description=mcp_tool.description,
         parameters=types.Schema(type='OBJECT', properties=gemini_properties, required=required_params)
     )
+
+def mcp_tool_to_openai_tool(mcp_tool: MCPTool) -> Dict[str, Any]:
+    """Converts an MCP Tool object to an OpenAI-compatible tool definition."""
+    properties: Dict[str, Any] = {}
+    required_params: List[str] = []
+
+    if mcp_tool.inputSchema:
+        schema = mcp_tool.inputSchema
+        if 'properties' in schema and isinstance(schema['properties'], dict):
+            for param_name, param_details in schema['properties'].items():
+                param_type = param_details.get('type', 'string').lower()
+                param_description = param_details.get('description', f'Parameter {param_name}')
+                
+                properties[param_name] = {
+                    "type": param_type,
+                    "description": param_description
+                }
+        if 'required' in schema and isinstance(schema['required'], list):
+            required_params = schema['required']
+
+    return {
+        "type": "function",
+        "function": {
+            "name": mcp_tool.name,
+            "description": mcp_tool.description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": required_params
+            }
+        }
+    }

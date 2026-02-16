@@ -30,6 +30,7 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "psutil",
+    "groq",
 ]
 
 [project.urls]
